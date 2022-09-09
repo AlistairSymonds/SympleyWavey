@@ -1,4 +1,4 @@
-from raypier.api import RayTraceModel, GeneralLens, CollimatedGaussletSource, SphericalFace, ConicFace, CircleShape, PlanarFace, RectangleShape, OpticalMaterial, EFieldPlane, GaussletCapturePlane, IntensitySurface
+from raypier.api import RayTraceModel, GeneralLens, CollimatedGaussletSource, CircularAperture, ConicFace, CircleShape, PlanarFace, RectangleShape, OpticalMaterial, EFieldPlane, GaussletCapturePlane, IntensitySurface
 from raypier.intensity_image import IntensityImageView
 
 import numpy as np
@@ -50,8 +50,10 @@ secondary_mirror = GeneralLens(centre=(0,0,0),
 
 optics_objs.append(secondary_mirror)
 
+sm_back = CircularAperture(centre=(0,0,-12),outer_diameter=94.6, inner_diameter=0)
+optics_objs.append(sm_back)
 
-src=CollimatedGaussletSource(origin=(0,0,100), #start the rays inside the tub, just keeps things neater
+src=CollimatedGaussletSource(origin=(0,0,-100), 
                              direction=(0,0,1),
                              radius=100,
                              blending=1,
