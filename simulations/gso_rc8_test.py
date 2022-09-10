@@ -25,28 +25,24 @@ mat = OpticalMaterial(from_database=False, refractive_index=1.5)
 primary_mirror_shape = CircleShape(radius=200.0/2) ^ CircleShape(radius=66.5/2)
 
 pm_optic_face = ConicFace(conic_const=K_1, curvature=R_1, mirror=True, z_height=0)
-pm_back_face = PlanarFace(z_height=-10)
 
 
 primary_mirror = GeneralLens(centre=(0,0,354.6),
                    direction=(0,0,-1),
                    shape=primary_mirror_shape,
-                   surfaces=[pm_optic_face,pm_back_face],
-                   materials=[mat])
+                   surfaces=[pm_optic_face])
 
 optics_objs.append(primary_mirror)
 
 secondary_mirror_shape = CircleShape(radius=94.6/2)
 
 sm_optic_face = ConicFace(conic_const=K_2, curvature=R_2, mirror=True, z_height=0)
-sm_back_face = PlanarFace(z_height=10)
 
 
 secondary_mirror = GeneralLens(centre=(0,0,0),
                    direction=(0,0,-1),
                    shape=secondary_mirror_shape,
-                   surfaces=[sm_optic_face,sm_back_face],
-                   materials=[mat])
+                   surfaces=[sm_optic_face])
 
 optics_objs.append(secondary_mirror)
 
