@@ -4,7 +4,7 @@ from raypier.intensity_image import IntensityImageView
 import numpy as np
 #all units in mm
 optics_objs = []
-
+srcs = []
 
 F = 1600
 D = 354.6
@@ -60,12 +60,28 @@ src=CollimatedGaussletSource(origin=(0,0,-100),
                              display="wires",
                              opacity=0.5,
                              max_ray_len=2000.0)
+srcs.append(src)
+
+if False:
+    src2=CollimatedGaussletSource(origin=(0,10,-100), 
+                                direction=(0,0.005,1),
+                                color=(0,0,1),
+                                radius=100,
+                                blending=1,
+                                beam_waist=10.0,
+                                resolution=3,
+                                E_vector=(0,1,0),
+                                wavelength=1.0,
+                                display="wires",
+                                opacity=0.5,
+                                max_ray_len=2000.0)
+    srcs.append(src2)
 
 
-cap = GaussletCapturePlane(centre=(0,0,354.6+300),
+cap = GaussletCapturePlane(centre=(0,0,B),
                            direction=(0,0,1))
 
-field = EFieldPlane(centre=(0,0,354.6+300),
+field = EFieldPlane(centre=(0,0,B),
                     direction=(0,0,1),
                     detector=cap,
                     align_detector=True,
@@ -79,7 +95,7 @@ image = IntensityImageView(field_probe=field)
 surf = IntensitySurface(field_probe=field)
 
 model = RayTraceModel(optics=optics_objs,
-                        sources=[src],
+                        sources=srcs,
                          probes=[field, cap], results=[image,surf])
 
 ###Now open the GUI###
