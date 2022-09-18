@@ -6,6 +6,7 @@ from prysm.segmented import _local_window
 import numpy as np
 from math import ceil
 import matplotlib.pyplot as plt
+from astropy.io import fits
 
 def shack_hartmann_phase_screen(x, y, pitch, n, efl, wavelength, aperture=geometry.rectangle):
     if not hasattr(n, '__iter__'):
@@ -54,23 +55,27 @@ def shack_hartmann_phase_screen(x, y, pitch, n, efl, wavelength, aperture=geomet
 # also, if you fiddle with the SH-WFS lenslet parameters, they are quite sensitive and easy to drive the model
 # into an undersampled regime (need more samples)
 # or have the lenslet PSFs overlap because the F/# is so big.  Delicate balancing act.
-x, y = coordinates.make_xy_grid(512, diameter=4)
+x, y = coordinates.make_xy_grid(4096, diameter=10)
 r, t = coordinates.cart_to_polar(x, y)
 dx = x[0,1]-x[0,0]
 
 efl = 2
-rmax = 1
+rmax = 5
 wvl = 0.550
-mask = shack_hartmann_phase_screen(x, y, pitch=.1, n=40, efl=efl, wavelength=wvl)
+mask = shack_hartmann_phase_screen(x, y, pitch=.3, n=40, efl=efl, wavelength=wvl)
 amp = geometry.circle(rmax, r)
 phs = polynomials.zernike_nm(0,4, r/rmax, t) # Zernike flavor spherical aberration
+phs =  phs * polynomials.zernike_nm(2,2, r/rmax, t) # Zernike flavor spherical aberration
 nwaves_aber = 5
-phs = phs * (wvl*1e3 * nwaves_aber) 
+phs = phs * (wvl*1e3 * nwaves_aber)
 wf = WF.from_amp_and_phase(amp, phs, .550, dx)
 wf = wf * mask
 wf2 = wf.free_space(dz=efl, Q=1)
 i = wf2.intensity
 i.data /= i.data.max()
+
+hdu = fits.PrimaryHDU(i.data)
+hdu.writeto('prysm_sh_capture.fits', overwrite=True)
 fig, ax = plt.subplots(figsize=(12,12))
-i.plot2d(power=1/2, xlim=1, interpolation='lanczos',  fig=fig, ax=ax)
+#i.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
 plt.show()
