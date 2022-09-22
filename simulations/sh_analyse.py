@@ -3,9 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import astropy.io.fits
 import scipy.ndimage
-
+from prysm import geometry, coordinates
 
 #assuming 0,0 is top left....
+#never converting back from pixels to world space :)
 def optical_coords_to_pixel(x,y,sensor_x_pitch, sensor_y_pitch, sensor_x_px_count, sensor_y_px_count):
     xpx = x /sensor_x_pitch
     ypx = y /sensor_y_pitch
@@ -25,8 +26,8 @@ n_y = 33
 ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
 ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
 
-#ulens_centres_x = [-4.5, -3.0, -1.5, 0, 4.5, 3.0, 1.5]
-#ulens_centres_y = 1.5
+#ulens_centres_x = [ -3.0, -2.7]
+#ulens_centres_y = [0]
 
 ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
 micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
@@ -63,7 +64,7 @@ for ulens in microlens_positions:
         lens_corners[cnr_idx][1] = cnr_y
     maxs = np.max(lens_corners, axis=0)     
     mins = np.min(lens_corners, axis=0)
-    ulens_aabb.append([mins[0], mins[1], maxs[0], maxs[1]]) #min_x, min_y, max_x, max_y
+    ulens_aabb.append([mins[0], mins[1], maxs[0], maxs[1], ulens[1], ulens[0]]) #min_x, min_y, max_x, max_y, centre x, centre y
 
 cell_dbg_d = sh_capture[0].data
 cell_infos = []
@@ -88,11 +89,12 @@ for ulens in ulens_aabb:
     #plt.imshow(cell)
     #plt.show()
     centroid_px = np.array(scipy.ndimage.center_of_mass(cell))
-    centroid = centroid_px * pixel_pitch_x
+    centroid = (centroid_px-0.5) * pixel_pitch_x
     intensities = np.sort(cell, axis=None)[-8:]
 
     cell_info = {}
     cell_info["centroid_xy"] = np.array([centroid[1], centroid[0]])
+    cell_info["lens_centre_xy"] = np.array([ulens[4],ulens[5]])
     cell_info["corner_xy"] = np.array([ulens[1],ulens[0]])
     cell_info["size_xy"] = np.array([ulens[2]-ulens[0], ulens[3]-ulens[1]])
     cell_info["corner_px_xy"] = (min_cnr_pixels[0], min_cnr_pixels[1])
@@ -113,26 +115,129 @@ for c in cell_infos:
 cell_int_thresh = ((max_int-min_int) * 0.1) + min_int
 cells_for_calc = []
 for c in cell_infos:
-     if c['intensities'] > cell_int_thresh:
+    if c['intensities'] > cell_int_thresh:
         cells_for_calc.append(c)
 
 
 final_img = sh_capture[0].data
-plt.imshow(final_img)
 expected_pos_img_px = np.zeros((len(cells_for_calc),2))
 deviation_img_px    = np.zeros((len(cells_for_calc),2))
 for cell_idx in range(len(cells_for_calc)):
     c = cells_for_calc[cell_idx]
-    expected_pos = c["size_xy"]/2
-    deviation = c["centroid_xy"] - expected_pos
+    deviation = c["centroid_xy"] - c["lens_centre_xy"]
 
-    expected_pos_image = expected_pos + c["corner_xy"]
+    expected_pos_image = c["lens_centre_xy"] 
     centroid_img = c["centroid_xy"] + c["corner_xy"]
     expected_pos_img_px[cell_idx] = np.array(optical_coords_to_pixel(expected_pos_image[0],expected_pos_image[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res))
     deviation_img_px[cell_idx]    = np.array(optical_coords_to_pixel(centroid_img[0],centroid_img[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res))
    
     #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
+
+plt.imshow(final_img)
 plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
 plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+plt.show()
+
+#now actually plot a wavefront
+
+x = np.zeros((len(cells_for_calc)))
+y = np.zeros((len(cells_for_calc)))
+r = np.zeros((len(cells_for_calc)))
+t = np.zeros((len(cells_for_calc)))
+slopes_polar = np.zeros( (len(cells_for_calc),2))
+slopes_xy = np.zeros( (len(cells_for_calc),2))
+
+
+for cell_idx in range(len(cells_for_calc)):
+    x[cell_idx] = cells_for_calc[cell_idx]["lens_centre_xy"][0]
+    y[cell_idx] = cells_for_calc[cell_idx]["lens_centre_xy"][1]
+
+    #slope_xy  = (cells_for_calc[cell_idx]["centroid_xy"]+ cells_for_calc[cell_idx]["corner_xy"]) - cells_for_calc[cell_idx]["lens_centre_xy"]
+    r[cell_idx], t[cell_idx] = coordinates.cart_to_polar(x[cell_idx], y[cell_idx])
+
+    #c_slope_mag, c_slope_angle = coordinates.cart_to_polar(slope_xy[0], slope_xy[1])
+    #slopes_polar[0][cell_idx] = c_slope_mag
+    #slopes_polar[1][cell_idx] = c_slope_angle
+
+    centroid_in_img = cells_for_calc[cell_idx]["centroid_xy"]    + cells_for_calc[cell_idx]["corner_xy"]
+    expected_in_img = cells_for_calc[cell_idx]["lens_centre_xy"]
+    slopes_xy[cell_idx] = centroid_in_img - expected_in_img
+    centroid_mag, centroid_angle = coordinates.cart_to_polar(centroid_in_img[0], centroid_in_img[1])
+    expected_mag, expected_angle = coordinates.cart_to_polar(expected_in_img[0], expected_in_img[1])
+    
+    
+    slopes_polar[cell_idx][0] = centroid_mag - expected_mag
+    slopes_polar[cell_idx][1] = centroid_angle - expected_angle
+
+    slopes_polar[cell_idx] = coordinates.cart_to_polar(slopes_xy[cell_idx][0], slopes_xy[cell_idx][1])
+
+    
+    #
+    #slopes_polar[0][cell_idx] = centroid_mag - expected_mag
+    #print("centre: " + str(cells_for_calc[cell_idx]["lens_centre_xy"]))
+    #print(centroid_mag)
+    #print(expected_mag)
+    #print(slopes_polar[0][cell_idx])
+    #
+    #slopes_xy[cell_idx] = slope_xy
+
+slopes_xy = slopes_xy.T
+
+slopes_polar = slopes_polar.T
+
+plt.plot(slopes_xy[0], slopes_xy[1])
+plt.show()
+from prysm.polynomials import (
+    fringe_to_nm,
+    zernike_nm_der_sequence,
+    zernike_nm_sequence,
+    lstsq,
+    sum_of_2d_modes,
+    nm_to_name
+)
+from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_angle
+
+from prysm.util import rms
+
+
+normalization_radius = 5 #np.max(r)
+r = r / normalization_radius
+
+fringe_indices = range(9,10)
+nms = [fringe_to_nm(j) for j in fringe_indices]
+nms = [[1,1],[4,0]]
+
+print("Fitting the following zernikes:")
+for zpol in nms:
+    print(zpol)
+    print(nm_to_name(zpol[0], zpol[1]))
+
+modes = list(zernike_nm_der_sequence(nms, r, t))
+#modes = list(symple_dodgy_othro_zernike_for_hwa(nms, r, t))
+for m in modes:
+    fig = plt.figure(figsize=plt.figaspect(1))
+
+    ax = fig.add_subplot(2, 2, 1, projection='3d')
+    ax.plot(r,t,m[0], linestyle='None', marker = '+')
+    
+    ax = fig.add_subplot(2, 2, 2, projection='3d')
+    ax.plot(r,t,slopes_polar[0], linestyle='None', marker = 'o')
+
+    ax = fig.add_subplot(2, 2, 3, projection='3d')
+    ax.plot(r,t,m[1], linestyle='None', marker = '+')
+    
+    ax = fig.add_subplot(2, 2, 4, projection='3d')
+    ax.plot(r,t,slopes_polar[1], linestyle='None', marker = 'o')
+
+    plt.show()
+
+print("slopes polar: " + str(np.shape(slopes_polar)))
+print("modes shape: " + str(np.shape(modes)))
+fit = lstsq(modes, slopes_xy)
+print(fit)
+pak = [[*nm, c] for nm, c in zip(nms, fit)]
+magnitudes = zernikes_to_magnitude_angle(pak)
+barplot_pak = {k: v[0] for k, v in magnitudes.items()}
+barplot_magnitudes(barplot_pak)
 plt.show()
