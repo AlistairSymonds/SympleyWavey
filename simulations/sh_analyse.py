@@ -14,14 +14,25 @@ def optical_coords_to_pixel(x,y,sensor_x_pitch, sensor_y_pitch, sensor_x_px_coun
     centre_offset_y = sensor_y_px_count / 2
     return (xpx+centre_offset_x, ypx+centre_offset_y)
 
+def cartesian_grad_to_polar_grad(x, y, dx, dy):
+    r, t = coordinates.cart_to_polar(x, y, vec_to_grid=False)
+    grad_end_pts_x = x + dx 
+    grad_end_pts_y = y + dy 
+    grad_end_pts_r, grad_end_pts_t = coordinates.cart_to_polar(grad_end_pts_x, grad_end_pts_y, vec_to_grid=False)
+
+    dr = r - grad_end_pts_r
+    dt = t - grad_end_pts_t
+
+    return dr, dt
+
 sensor_x = 10
 sensor_y = 10
 
 pitch_x = 0.3
 pitch_y = pitch_x
 
-n_x = 33
-n_y = 33
+n_x = 1
+n_y = 5
 
 ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
 ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
@@ -115,7 +126,8 @@ for c in cell_infos:
 cell_int_thresh = ((max_int-min_int) * 0.1) + min_int
 cells_for_calc = []
 for c in cell_infos:
-    if c['intensities'] > cell_int_thresh:
+    cr, ct = coordinates.cart_to_polar(c["lens_centre_xy"][0],c["lens_centre_xy"][1] )
+    if cr <= 4.1: #c['intensities'] > cell_int_thresh:
         cells_for_calc.append(c)
 
 
@@ -145,8 +157,10 @@ x = np.zeros((len(cells_for_calc)))
 y = np.zeros((len(cells_for_calc)))
 r = np.zeros((len(cells_for_calc)))
 t = np.zeros((len(cells_for_calc)))
-slopes_polar = np.zeros( (len(cells_for_calc),2))
 slopes_xy = np.zeros( (len(cells_for_calc),2))
+
+
+
 
 
 for cell_idx in range(len(cells_for_calc)):
@@ -156,38 +170,16 @@ for cell_idx in range(len(cells_for_calc)):
     #slope_xy  = (cells_for_calc[cell_idx]["centroid_xy"]+ cells_for_calc[cell_idx]["corner_xy"]) - cells_for_calc[cell_idx]["lens_centre_xy"]
     r[cell_idx], t[cell_idx] = coordinates.cart_to_polar(x[cell_idx], y[cell_idx])
 
-    #c_slope_mag, c_slope_angle = coordinates.cart_to_polar(slope_xy[0], slope_xy[1])
-    #slopes_polar[0][cell_idx] = c_slope_mag
-    #slopes_polar[1][cell_idx] = c_slope_angle
-
     centroid_in_img = cells_for_calc[cell_idx]["centroid_xy"]    + cells_for_calc[cell_idx]["corner_xy"]
     expected_in_img = cells_for_calc[cell_idx]["lens_centre_xy"]
     slopes_xy[cell_idx] = centroid_in_img - expected_in_img
-    centroid_mag, centroid_angle = coordinates.cart_to_polar(centroid_in_img[0], centroid_in_img[1])
-    expected_mag, expected_angle = coordinates.cart_to_polar(expected_in_img[0], expected_in_img[1])
-    
-    
-    slopes_polar[cell_idx][0] = centroid_mag - expected_mag
-    slopes_polar[cell_idx][1] = centroid_angle - expected_angle
 
-    slopes_polar[cell_idx] = coordinates.cart_to_polar(slopes_xy[cell_idx][0], slopes_xy[cell_idx][1])
 
-    
-    #
-    #slopes_polar[0][cell_idx] = centroid_mag - expected_mag
-    #print("centre: " + str(cells_for_calc[cell_idx]["lens_centre_xy"]))
-    #print(centroid_mag)
-    #print(expected_mag)
-    #print(slopes_polar[0][cell_idx])
-    #
-    #slopes_xy[cell_idx] = slope_xy
 
 slopes_xy = slopes_xy.T
 
-slopes_polar = slopes_polar.T
+dr, dt = cartesian_grad_to_polar_grad(x, y, slopes_xy[0], slopes_xy[1])
 
-plt.plot(slopes_xy[0], slopes_xy[1])
-plt.show()
 from prysm.polynomials import (
     fringe_to_nm,
     zernike_nm_der_sequence,
@@ -206,7 +198,7 @@ r = r / normalization_radius
 
 fringe_indices = range(9,10)
 nms = [fringe_to_nm(j) for j in fringe_indices]
-nms = [[1,1],[4,0]]
+nms = [[1,1], [4,0]]
 
 print("Fitting the following zernikes:")
 for zpol in nms:
@@ -222,18 +214,18 @@ for m in modes:
     ax.plot(r,t,m[0], linestyle='None', marker = '+')
     
     ax = fig.add_subplot(2, 2, 2, projection='3d')
-    ax.plot(r,t,slopes_polar[0], linestyle='None', marker = 'o')
+    ax.plot(r,t, dr, linestyle='None', marker = 'o')
 
     ax = fig.add_subplot(2, 2, 3, projection='3d')
     ax.plot(r,t,m[1], linestyle='None', marker = '+')
-    
+
     ax = fig.add_subplot(2, 2, 4, projection='3d')
-    ax.plot(r,t,slopes_polar[1], linestyle='None', marker = 'o')
+    ax.plot(r,t, dt, linestyle='None', marker = 'o')
 
     plt.show()
+    fit = np.linalg.lstsq(m.T, slopes_xy.T)
+    print(fit[0])
 
-print("slopes polar: " + str(np.shape(slopes_polar)))
-print("modes shape: " + str(np.shape(modes)))
 fit = lstsq(modes, slopes_xy)
 print(fit)
 pak = [[*nm, c] for nm, c in zip(nms, fit)]
