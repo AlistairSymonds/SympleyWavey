@@ -12,7 +12,7 @@ def optical_coords_to_pixel(x,y,sensor_x_pitch, sensor_y_pitch, sensor_x_px_coun
     ypx = y /sensor_y_pitch
     centre_offset_x = sensor_x_px_count / 2
     centre_offset_y = sensor_y_px_count / 2
-    return (xpx+centre_offset_x, ypx+centre_offset_y)
+    return (xpx+centre_offset_x, centre_offset_y-ypx)
 
 def cartesian_grad_to_polar_grad(x, y, dx, dy):
     r, t = coordinates.cart_to_polar(x, y, vec_to_grid=False)
@@ -31,8 +31,8 @@ sensor_y = 10
 pitch_x = 0.3
 pitch_y = pitch_x
 
-n_x = 1
-n_y = 5
+n_x = 33
+n_y = 33
 
 ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
 ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
@@ -42,6 +42,9 @@ ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y
 
 ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
 micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
+
+#micro_lens_positions_x = np.array([1.8, 0])
+#micro_lens_positions_y = np.array([1.8, 0])
 
 micro_lens_positions_x = micro_lens_positions_x.flatten()
 micro_lens_positions_y = micro_lens_positions_y.flatten()
@@ -80,8 +83,8 @@ for ulens in microlens_positions:
 cell_dbg_d = sh_capture[0].data
 cell_infos = []
 for ulens in ulens_aabb:
-    min_cnr_pixels = np.array(optical_coords_to_pixel(ulens[0],ulens[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
-    max_cnr_pixels = np.array(optical_coords_to_pixel(ulens[2],ulens[3],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
+    min_cnr_pixels = np.array(optical_coords_to_pixel(ulens[0],ulens[3],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
+    max_cnr_pixels = np.array(optical_coords_to_pixel(ulens[2],ulens[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
     cell = cell_dbg_d[min_cnr_pixels[0]:max_cnr_pixels[0], min_cnr_pixels[1]:max_cnr_pixels[1]]
 
     #temporary noise and constant offset
@@ -101,6 +104,10 @@ for ulens in ulens_aabb:
     #plt.show()
     centroid_px = np.array(scipy.ndimage.center_of_mass(cell))
     centroid = (centroid_px-0.5) * pixel_pitch_x
+
+    #need to flip y to go from pixel (Top left, pos down and right) to optical coords (0,0 centre)
+    cell_size_y = ulens[3] - ulens[1]
+    centroid[0] = cell_size_y - centroid[0]
     intensities = np.sort(cell, axis=None)[-8:]
 
     cell_info = {}
@@ -108,8 +115,6 @@ for ulens in ulens_aabb:
     cell_info["lens_centre_xy"] = np.array([ulens[4],ulens[5]])
     cell_info["corner_xy"] = np.array([ulens[1],ulens[0]])
     cell_info["size_xy"] = np.array([ulens[2]-ulens[0], ulens[3]-ulens[1]])
-    cell_info["corner_px_xy"] = (min_cnr_pixels[0], min_cnr_pixels[1])
-    cell_info["size_px_xy"] = (max_cnr_pixels[0]-min_cnr_pixels[0], max_cnr_pixels[1]-min_cnr_pixels[1])
     cell_info["intensities"] = np.sum(intensities)
     cell_infos.append(cell_info)
 
@@ -223,10 +228,12 @@ for m in modes:
     ax.plot(r,t, dt, linestyle='None', marker = 'o')
 
     plt.show()
-    fit = np.linalg.lstsq(m.T, slopes_xy.T)
+    m_np = np.array(m).T
+    measured_polar_slopes = np.array([dr, dt]).T
+    fit = np.linalg.lstsq(m_np, measured_polar_slopes)
     print(fit[0])
 
-fit = lstsq(modes, slopes_xy)
+fit = lstsq(modes, np.array([dr, dt]))
 print(fit)
 pak = [[*nm, c] for nm, c in zip(nms, fit)]
 magnitudes = zernikes_to_magnitude_angle(pak)
