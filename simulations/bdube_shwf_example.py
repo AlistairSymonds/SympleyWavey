@@ -59,16 +59,21 @@ x, y = coordinates.make_xy_grid(4096, diameter=10)
 r, t = coordinates.cart_to_polar(x, y)
 dx = x[0,1]-x[0,0]
 
-efl = 2
+efl = 5
 rmax = 5
 wvl = 0.550
 mask = shack_hartmann_phase_screen(x, y, pitch=.3, n=40, efl=efl, wavelength=wvl)
 amp = geometry.circle(rmax, r)
 phs = polynomials.zernike_nm(0,4, r/rmax, t) # Zernike flavor spherical aberration
-phs =  phs * polynomials.zernike_nm(2,2, r/rmax, t) # Zernike flavor spherical aberration
-nwaves_aber = 5
+
+nwaves_aber = 20
 phs = phs * (wvl*1e3 * nwaves_aber)
 wf = WF.from_amp_and_phase(amp, phs, .550, dx)
+
+#fig, ax = plt.subplots(figsize=(12,12))
+#wf.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
+#plt.show()
+
 wf = wf * mask
 wf2 = wf.free_space(dz=efl, Q=1)
 i = wf2.intensity
@@ -77,5 +82,5 @@ i.data /= i.data.max()
 hdu = fits.PrimaryHDU(i.data)
 hdu.writeto('prysm_sh_capture.fits', overwrite=True)
 fig, ax = plt.subplots(figsize=(12,12))
-#i.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
+i.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
 plt.show()

@@ -22,8 +22,20 @@ def cartesian_grad_to_polar_grad(x, y, dx, dy):
 
     dr = r - grad_end_pts_r
     dt = t - grad_end_pts_t
-
+    
+    dt = (dt + np.pi) % (2 * np.pi) - np.pi
     return dr, dt
+
+def polar_gradient_to_cartesian_grad(r, t, dr, dt):
+    x, y = coordinates.polar_to_cart(r, t)
+    grad_end_pts_r = r + dr
+    grad_end_pts_t = t + dt 
+    grad_end_pts_x, grad_end_pts_y = coordinates.polar_to_cart(grad_end_pts_r, grad_end_pts_t)
+
+    dx = x - grad_end_pts_x
+    dy = y - grad_end_pts_y
+    return dx, dy
+
 
 sensor_x = 10
 sensor_y = 10
@@ -43,8 +55,8 @@ ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y
 ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
 micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
 
-#micro_lens_positions_x = np.array([1.8, 0])
-#micro_lens_positions_y = np.array([1.8, 0])
+#micro_lens_positions_x = np.array([0])
+#micro_lens_positions_y = np.array([-1.8])
 
 micro_lens_positions_x = micro_lens_positions_x.flatten()
 micro_lens_positions_y = micro_lens_positions_y.flatten()
@@ -78,14 +90,14 @@ for ulens in microlens_positions:
         lens_corners[cnr_idx][1] = cnr_y
     maxs = np.max(lens_corners, axis=0)     
     mins = np.min(lens_corners, axis=0)
-    ulens_aabb.append([mins[0], mins[1], maxs[0], maxs[1], ulens[1], ulens[0]]) #min_x, min_y, max_x, max_y, centre x, centre y
+    ulens_aabb.append([mins[0], mins[1], maxs[0], maxs[1], ulens[0], ulens[1]]) #min_x, min_y, max_x, max_y, centre x, centre y
 
 cell_dbg_d = sh_capture[0].data
 cell_infos = []
 for ulens in ulens_aabb:
     min_cnr_pixels = np.array(optical_coords_to_pixel(ulens[0],ulens[3],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
     max_cnr_pixels = np.array(optical_coords_to_pixel(ulens[2],ulens[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
-    cell = cell_dbg_d[min_cnr_pixels[0]:max_cnr_pixels[0], min_cnr_pixels[1]:max_cnr_pixels[1]]
+    cell = cell_dbg_d[min_cnr_pixels[1]:max_cnr_pixels[1], min_cnr_pixels[0]:max_cnr_pixels[0]]
 
     #temporary noise and constant offset
     cell = cell + np.random.normal(loc=0, scale=0.0001, size=cell.shape) + 0.05
@@ -107,13 +119,15 @@ for ulens in ulens_aabb:
 
     #need to flip y to go from pixel (Top left, pos down and right) to optical coords (0,0 centre)
     cell_size_y = ulens[3] - ulens[1]
+    cell_size_x = ulens[2] - ulens[0]
     centroid[0] = cell_size_y - centroid[0]
+    centroid[0] = centroid[0] - (cell_size_y/2)
+    centroid[1] = centroid[1] - (cell_size_x/2)
     intensities = np.sort(cell, axis=None)[-8:]
 
     cell_info = {}
     cell_info["centroid_xy"] = np.array([centroid[1], centroid[0]])
     cell_info["lens_centre_xy"] = np.array([ulens[4],ulens[5]])
-    cell_info["corner_xy"] = np.array([ulens[1],ulens[0]])
     cell_info["size_xy"] = np.array([ulens[2]-ulens[0], ulens[3]-ulens[1]])
     cell_info["intensities"] = np.sum(intensities)
     cell_infos.append(cell_info)
@@ -141,10 +155,9 @@ expected_pos_img_px = np.zeros((len(cells_for_calc),2))
 deviation_img_px    = np.zeros((len(cells_for_calc),2))
 for cell_idx in range(len(cells_for_calc)):
     c = cells_for_calc[cell_idx]
-    deviation = c["centroid_xy"] - c["lens_centre_xy"]
 
     expected_pos_image = c["lens_centre_xy"] 
-    centroid_img = c["centroid_xy"] + c["corner_xy"]
+    centroid_img = c["centroid_xy"] + c["lens_centre_xy"]
     expected_pos_img_px[cell_idx] = np.array(optical_coords_to_pixel(expected_pos_image[0],expected_pos_image[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res))
     deviation_img_px[cell_idx]    = np.array(optical_coords_to_pixel(centroid_img[0],centroid_img[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res))
    
@@ -175,7 +188,7 @@ for cell_idx in range(len(cells_for_calc)):
     #slope_xy  = (cells_for_calc[cell_idx]["centroid_xy"]+ cells_for_calc[cell_idx]["corner_xy"]) - cells_for_calc[cell_idx]["lens_centre_xy"]
     r[cell_idx], t[cell_idx] = coordinates.cart_to_polar(x[cell_idx], y[cell_idx])
 
-    centroid_in_img = cells_for_calc[cell_idx]["centroid_xy"]    + cells_for_calc[cell_idx]["corner_xy"]
+    centroid_in_img = cells_for_calc[cell_idx]["centroid_xy"]  + cells_for_calc[cell_idx]["lens_centre_xy"]
     expected_in_img = cells_for_calc[cell_idx]["lens_centre_xy"]
     slopes_xy[cell_idx] = centroid_in_img - expected_in_img
 
@@ -183,6 +196,7 @@ for cell_idx in range(len(cells_for_calc)):
 
 slopes_xy = slopes_xy.T
 
+print(slopes_xy)
 dr, dt = cartesian_grad_to_polar_grad(x, y, slopes_xy[0], slopes_xy[1])
 
 from prysm.polynomials import (
@@ -201,9 +215,9 @@ from prysm.util import rms
 normalization_radius = 5 #np.max(r)
 r = r / normalization_radius
 
-fringe_indices = range(9,10)
+fringe_indices = range(1,10)
 nms = [fringe_to_nm(j) for j in fringe_indices]
-nms = [[1,1], [4,0]]
+#nms = [[1,1]]
 
 print("Fitting the following zernikes:")
 for zpol in nms:
@@ -211,10 +225,9 @@ for zpol in nms:
     print(nm_to_name(zpol[0], zpol[1]))
 
 modes = list(zernike_nm_der_sequence(nms, r, t))
-#modes = list(symple_dodgy_othro_zernike_for_hwa(nms, r, t))
 for m in modes:
     fig = plt.figure(figsize=plt.figaspect(1))
-
+    mxy = polar_gradient_to_cartesian_grad(r,t,m[0],m[1])
     ax = fig.add_subplot(2, 2, 1, projection='3d')
     ax.plot(r,t,m[0], linestyle='None', marker = '+')
     
