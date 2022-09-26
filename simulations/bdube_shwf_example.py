@@ -64,8 +64,14 @@ rmax = 5
 wvl = 0.550
 mask = shack_hartmann_phase_screen(x, y, pitch=.3, n=40, efl=efl, wavelength=wvl)
 amp = geometry.circle(rmax, r)
-phs = polynomials.zernike_nm(0,4, r/rmax, t) # Zernike flavor spherical aberration
-
+phs = polynomials.zernike_nm(4,0, r/rmax, t) # Zernike flavor spherical aberration
+phs += (polynomials.zernike_nm(2,2, r/rmax, t)) # Zernike flavor astig
+#show phase of wavefront
+if True:
+    phi2 = phs.copy()
+    phi2[amp!=1]=np.nan
+    plt.imshow(phi2)
+    plt.show()
 nwaves_aber = 20
 phs = phs * (wvl*1e3 * nwaves_aber)
 wf = WF.from_amp_and_phase(amp, phs, .550, dx)
