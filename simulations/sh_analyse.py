@@ -55,8 +55,9 @@ ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y
 ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
 micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
 
-#micro_lens_positions_x = np.array([0])
-#micro_lens_positions_y = np.array([-1.8])
+
+#micro_lens_positions_x = np.array([0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
+#micro_lens_positions_y = np.array([0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   0,   0,    0,  0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
 
 micro_lens_positions_x = micro_lens_positions_x.flatten()
 micro_lens_positions_y = micro_lens_positions_y.flatten()
@@ -197,7 +198,7 @@ for cell_idx in range(len(cells_for_calc)):
 slopes_xy = slopes_xy.T
 
 print(slopes_xy)
-dr, dt = cartesian_grad_to_polar_grad(x, y, slopes_xy[0], slopes_xy[1])
+dr, dt = cartesian_grad_to_polar_grad(x/5, y/5, slopes_xy[0], slopes_xy[1])
 
 from prysm.polynomials import (
     fringe_to_nm,
@@ -217,7 +218,7 @@ r = r / normalization_radius
 
 fringe_indices = range(1,10)
 nms = [fringe_to_nm(j) for j in fringe_indices]
-#nms = [[1,1]]
+#nms = [[1,1],[4,0]]
 
 print("Fitting the following zernikes:")
 for zpol in nms:
@@ -226,25 +227,26 @@ for zpol in nms:
 
 modes = list(zernike_nm_der_sequence(nms, r, t))
 for m in modes:
-    fig = plt.figure(figsize=plt.figaspect(1))
-    mxy = polar_gradient_to_cartesian_grad(r,t,m[0],m[1])
-    ax = fig.add_subplot(2, 2, 1, projection='3d')
-    ax.plot(r,t,m[0], linestyle='None', marker = '+')
-    
-    ax = fig.add_subplot(2, 2, 2, projection='3d')
-    ax.plot(r,t, dr, linestyle='None', marker = 'o')
+    if False:
+        fig = plt.figure(figsize=plt.figaspect(1))
+        mxy = polar_gradient_to_cartesian_grad(r,t,m[0],m[1])
+        ax = fig.add_subplot(2, 2, 1, projection='3d')
+        ax.plot(r,t,m[0], linestyle='None', marker = '+')
+        
+        ax = fig.add_subplot(2, 2, 2, projection='3d')
+        ax.plot(r,t, dr, linestyle='None', marker = 'o')
 
-    ax = fig.add_subplot(2, 2, 3, projection='3d')
-    ax.plot(r,t,m[1], linestyle='None', marker = '+')
+        ax = fig.add_subplot(2, 2, 3, projection='3d')
+        ax.plot(r,t,m[1], linestyle='None', marker = '+')
 
-    ax = fig.add_subplot(2, 2, 4, projection='3d')
-    ax.plot(r,t, dt, linestyle='None', marker = 'o')
+        ax = fig.add_subplot(2, 2, 4, projection='3d')
+        ax.plot(r,t, dt, linestyle='None', marker = 'o')
 
-    plt.show()
-    m_np = np.array(m).T
-    measured_polar_slopes = np.array([dr, dt]).T
-    fit = np.linalg.lstsq(m_np, measured_polar_slopes)
-    print(fit[0])
+        plt.show()
+        m_np = np.array(m).T
+        measured_polar_slopes = np.array([dr, dt]).T
+        fit = np.linalg.lstsq(m_np, measured_polar_slopes)
+        print(fit[0])
 
 fit = lstsq(modes, np.array([dr, dt]))
 print(fit)
