@@ -1,12 +1,13 @@
 #from here: https://www.reddit.com/r/Optics/comments/xccrsk/options_for_free_optical_simulation/io83hq6/
 # Big thanks to Brandon Dube for both prysm and giving me this example :)
-from prysm import geometry, coordinates, polynomials
+from prysm import geometry, coordinates, polynomials, detector
 from prysm.propagation import Wavefront as WF
 from prysm.segmented import _local_window
 import numpy as np
 from math import ceil
 import matplotlib.pyplot as plt
 from astropy.io import fits
+import wavey
 
 def shack_hartmann_phase_screen(x, y, pitch, n, efl, wavelength, aperture=geometry.rectangle):
     if not hasattr(n, '__iter__'):
@@ -64,7 +65,7 @@ rmax = 5
 wvl = 0.550
 mask = shack_hartmann_phase_screen(x, y, pitch=.3, n=40, efl=efl, wavelength=wvl)
 amp = geometry.circle(rmax, r)
-phs = polynomials.zernike_nm(4,0, r/rmax, t) # Zernike flavor spherical aberration
+phs = polynomials.zernike_nm(1,1, r/rmax, t) # Zernike flavor spherical aberration
 phs += (polynomials.zernike_nm(2,2, r/rmax, t)) # Zernike flavor astig
 #show phase of wavefront
 if True:
@@ -85,8 +86,12 @@ wf2 = wf.free_space(dz=efl, Q=1)
 i = wf2.intensity
 i.data /= i.data.max()
 
+c = wavey.imx174()
+capture = c.expose2(i, x, y, 5)
+
 hdu = fits.PrimaryHDU(i.data)
 hdu.writeto('prysm_sh_capture.fits', overwrite=True)
 fig, ax = plt.subplots(figsize=(12,12))
 i.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
 plt.show()
+
