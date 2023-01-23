@@ -6,13 +6,21 @@ import scipy.ndimage
 from prysm import geometry, coordinates
 
 class sh_analyser:
+    def __init__(self, microlens_positions, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count):
+        self.microlens_positions = microlens_positions
+        self.sensor_x_pitch = px_x_size
+        self.sensor_y_pitch = px_y_size
+        self.sensor_x_px_count = sensor_x_px_count
+        self.sensor_y_px_count = sensor_y_px_count
+
+        
     #assuming 0,0 is top left....
     #never converting back from pixels to world space :)
-    def optical_coords_to_pixel(x,y,sensor_x_pitch, sensor_y_pitch, sensor_x_px_count, sensor_y_px_count):
-        xpx = x /sensor_x_pitch
-        ypx = y /sensor_y_pitch
-        centre_offset_x = sensor_x_px_count / 2
-        centre_offset_y = sensor_y_px_count / 2
+    def optical_coords_to_pixel(self, x,y):
+        xpx = x / self.sensor_x_pitch
+        ypx = y / self.sensor_y_pitch
+        centre_offset_x = self.sensor_x_px_count / 2
+        centre_offset_y = self.sensor_y_px_count / 2
         return (xpx+centre_offset_x, centre_offset_y-ypx)
 
     def cartesian_grad_to_polar_grad(x, y, dx, dy):
@@ -37,50 +45,22 @@ class sh_analyser:
         dy = y - grad_end_pts_y
         return dx, dy
 
-    def analyse():
-        sensor_x = 10
-        sensor_y = 10
+    def is_point_on_sensor(self, x,y):
+        sensor_width = self.sensor_x_pitch * self.sensor_x_px_count
+        sensor_height = self.sensor_y_pitch * self.sensor_y_px_count
+        xmin = (-1*(sensor_width/2))
+        xmax = (+1*(sensor_width/2))
+        ymin = (-1*(sensor_height/2))
+        ymax = (+1*(sensor_height/2))
 
-        pitch_x = 0.3
-        pitch_y = pitch_x
-
-        n_x = 33
-        n_y = 33
-
-        ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
-        ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
-
-        #ulens_centres_x = [ -3.0, -2.7]
-        #ulens_centres_y = [0]
-
-        ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
-        micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
+        if (x > xmin and x < xmax and y > ymin and y < ymax):
+            return True
+        else:
+            return False
 
 
-        #micro_lens_positions_x = np.array([0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
-        #micro_lens_positions_y = np.array([0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   0,   0,    0,  0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
-
-        micro_lens_positions_x = micro_lens_positions_x.flatten()
-        micro_lens_positions_y = micro_lens_positions_y.flatten()
-
-        microlens_positions = []
-        for i in range(micro_lens_positions_x.size):
-            microlens_positions.append((micro_lens_positions_x[i], micro_lens_positions_y[i]))
-            #if i % 4:
-            #    plt.scatter(microlens_positions[i][0], microlens_positions[i][1])
-
-        #plt.show()
-
-        sh_capture = astropy.io.fits.open("C:/Users/alist/Documents/GitHub/SympleyWavey/prysm_sh_capture.fits")
-
-
-
-        x_res = sh_capture[0].data.shape[0]
-        y_res = sh_capture[0].data.shape[1]
-        pixel_pitch_x = sensor_x / x_res
-        pixel_pitch_y = sensor_y / y_res
-        #cell_size_px_x = pixel_pitch_x // pitch_x
-        #cell_size_px_y = pixel_pitch_y // pitch_y
+    def analyse(self, img):
+        
         ulens_aabb = []
         for ulens in microlens_positions:
             lens_corners = np.empty(shape=(len(ulens_cell_corners),2))
@@ -92,18 +72,18 @@ class sh_analyser:
                 lens_corners[cnr_idx][1] = cnr_y
             maxs = np.max(lens_corners, axis=0)     
             mins = np.min(lens_corners, axis=0)
-            ulens_aabb.append([mins[0], mins[1], maxs[0], maxs[1], ulens[0], ulens[1]]) #min_x, min_y, max_x, max_y, centre x, centre y
 
-        cell_dbg_d = sh_capture[0].data
+            if (self.is_point_on_sensor(mins[1], mins[0]) and self.is_point_on_sensor(maxs[1], maxs[0])):
+                ulens_aabb.append([mins[1], mins[0], maxs[1], maxs[0], ulens[0], ulens[1]]) #min_x, min_y, max_x, max_y, centre x, centre y
+
+        cell_dbg_d = img
         cell_infos = []
         for ulens in ulens_aabb:
-            min_cnr_pixels = np.array(optical_coords_to_pixel(ulens[0],ulens[3],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
-            max_cnr_pixels = np.array(optical_coords_to_pixel(ulens[2],ulens[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res)).astype(int)
+            min_cnr_pixels = np.array(self.optical_coords_to_pixel(ulens[0],ulens[3])).astype(int)
+            max_cnr_pixels = np.array(self.optical_coords_to_pixel(ulens[2],ulens[1])).astype(int)
             cell = cell_dbg_d[min_cnr_pixels[1]:max_cnr_pixels[1], min_cnr_pixels[0]:max_cnr_pixels[0]]
 
-            #temporary noise and constant offset
-            cell = cell + np.random.normal(loc=0, scale=0.0001, size=cell.shape) + 0.05
-
+            
             img_mean = np.mean(cell)
             img_max = np.max(cell)
             img_var = np.var(cell)
@@ -117,7 +97,7 @@ class sh_analyser:
             #plt.imshow(cell)
             #plt.show()
             centroid_px = np.array(scipy.ndimage.center_of_mass(cell))
-            centroid = (centroid_px-0.5) * pixel_pitch_x
+            centroid = (centroid_px-0.5) * self.sensor_x_pitch
 
             #need to flip y to go from pixel (Top left, pos down and right) to optical coords (0,0 centre)
             cell_size_y = ulens[3] - ulens[1]
@@ -152,7 +132,7 @@ class sh_analyser:
                 cells_for_calc.append(c)
 
 
-        final_img = sh_capture[0].data
+        final_img = img
         expected_pos_img_px = np.zeros((len(cells_for_calc),2))
         deviation_img_px    = np.zeros((len(cells_for_calc),2))
         for cell_idx in range(len(cells_for_calc)):
@@ -160,15 +140,15 @@ class sh_analyser:
 
             expected_pos_image = c["lens_centre_xy"] 
             centroid_img = c["centroid_xy"] + c["lens_centre_xy"]
-            expected_pos_img_px[cell_idx] = np.array(optical_coords_to_pixel(expected_pos_image[0],expected_pos_image[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res))
-            deviation_img_px[cell_idx]    = np.array(optical_coords_to_pixel(centroid_img[0],centroid_img[1],pixel_pitch_x, pixel_pitch_y, x_res, y_res))
+            expected_pos_img_px[cell_idx] = np.array(self.optical_coords_to_pixel(expected_pos_image[0],expected_pos_image[1]))
+            deviation_img_px[cell_idx]    = np.array(self.optical_coords_to_pixel(centroid_img[0],centroid_img[1]))
         
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
 
         plt.imshow(final_img)
-        plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
-        plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+        plt.plot(expected_pos_img_px[:,1], expected_pos_img_px[:,0], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
+        plt.plot(deviation_img_px[:,1], deviation_img_px[:,0], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
         plt.show()
 
         #now actually plot a wavefront
@@ -199,7 +179,7 @@ class sh_analyser:
         slopes_xy = slopes_xy.T
 
         print(slopes_xy)
-        dr, dt = cartesian_grad_to_polar_grad(x/5, y/5, slopes_xy[0], slopes_xy[1])
+        dr, dt = self.cartesian_grad_to_polar_grad(x/5, y/5, slopes_xy[0], slopes_xy[1])
 
         from prysm.polynomials import (
             fringe_to_nm,
@@ -260,3 +240,47 @@ class sh_analyser:
 if __name__ == "__main__":
     import argparse as ap
     
+    from astropy.io import fits
+    from pathlib import Path
+    parser = ap.ArgumentParser("Shack-Hartmann analyser")
+    parser.add_argument("fits_path")
+    parser.add_argument("--pixel_size", help="Pixel size in um", type=float)
+    
+    args = parser.parse_args()
+
+    fits_path = Path(args.fits_path)
+    fits_file = fits.open(fits_path)
+    print("analysing...")
+
+    pitch_x = 0.3
+    pitch_y = pitch_x
+
+    n_x = 33
+    n_y = 33
+
+    ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
+    ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
+
+    ulens_centres_x = [0]
+    ulens_centres_y = [3.0]
+
+    ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
+    micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
+
+
+    #micro_lens_positions_x = np.array([0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
+    #micro_lens_positions_y = np.array([0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   0,   0,    0,  0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
+
+    micro_lens_positions_x = micro_lens_positions_x.flatten()
+    micro_lens_positions_y = micro_lens_positions_y.flatten()
+
+    microlens_positions = []
+    for i in range(micro_lens_positions_x.size):
+        microlens_positions.append((micro_lens_positions_x[i], micro_lens_positions_y[i]))
+
+
+    a = sh_analyser(microlens_positions, px_x_size=args.pixel_size/1000, px_y_size=args.pixel_size/1000, 
+                    sensor_y_px_count=fits_file[0].data.shape[0], sensor_x_px_count=fits_file[0].data.shape[1])
+
+    a.analyse(fits_file[0].data)
+
