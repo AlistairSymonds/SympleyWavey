@@ -87,11 +87,14 @@ i = wf2.intensity
 i.data /= i.data.max()
 
 c = wavey.imx174()
-capture = c.expose2(i, x, y, 5)
+capture174 = c.expose2(i, x, y, 5)
 
-hdu = fits.PrimaryHDU(i.data)
-hdu.writeto('prysm_sh_capture.fits', overwrite=True)
-fig, ax = plt.subplots(figsize=(12,12))
-i.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
-plt.show()
+hdu174 = fits.PrimaryHDU(capture174)
+hdu174.writeto('imx174_mla300.fits', overwrite=True)
 
+
+c = wavey.imx533()
+capture533 = c.expose2(i, x, y, 5)
+
+hdu533 = fits.PrimaryHDU(capture533)
+hdu533.writeto('imx533_mla300.fits', overwrite=True)
