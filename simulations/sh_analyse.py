@@ -1,17 +1,23 @@
-from tkinter.messagebox import NO
 import numpy as np
 import matplotlib.pyplot as plt
-import astropy.io.fits
 import scipy.ndimage
 from prysm import geometry, coordinates
+from prysm.polynomials import zernike_nm, zernike_nm_der_sequence, lstsq, nm_to_name, fringe_to_nm
+
+from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_angle
+
+from prysm.util import rms
+
 
 class sh_analyser:
-    def __init__(self, microlens_positions, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count):
+    def __init__(self, microlens_positions, wavefront_radius, wvl, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count):
         self.microlens_positions = microlens_positions
         self.sensor_x_pitch = px_x_size
         self.sensor_y_pitch = px_y_size
         self.sensor_x_px_count = sensor_x_px_count
         self.sensor_y_px_count = sensor_y_px_count
+        self.wf_r = wavefront_radius
+        self.wvl = wvl
 
         
     #assuming 0,0 is top left....
@@ -23,7 +29,7 @@ class sh_analyser:
         centre_offset_y = self.sensor_y_px_count / 2
         return (xpx+centre_offset_x, centre_offset_y-ypx)
 
-    def cartesian_grad_to_polar_grad(x, y, dx, dy):
+    def cartesian_grad_to_polar_grad(self, x, y, dx, dy):
         r, t = coordinates.cart_to_polar(x, y, vec_to_grid=False)
         grad_end_pts_x = x + dx 
         grad_end_pts_y = y + dy 
@@ -35,7 +41,7 @@ class sh_analyser:
         dt = (dt + np.pi) % (2 * np.pi) - np.pi
         return dr, dt
 
-    def polar_gradient_to_cartesian_grad(r, t, dr, dt):
+    def polar_gradient_to_cartesian_grad(self, r, t, dr, dt):
         x, y = coordinates.polar_to_cart(r, t)
         grad_end_pts_r = r + dr
         grad_end_pts_t = t + dt 
@@ -73,8 +79,8 @@ class sh_analyser:
             maxs = np.max(lens_corners, axis=0)     
             mins = np.min(lens_corners, axis=0)
 
-            if (self.is_point_on_sensor(mins[1], mins[0]) and self.is_point_on_sensor(maxs[1], maxs[0])):
-                ulens_aabb.append([mins[1], mins[0], maxs[1], maxs[0], ulens[0], ulens[1]]) #min_x, min_y, max_x, max_y, centre x, centre y
+            if (self.is_point_on_sensor(mins[0], mins[1]) and self.is_point_on_sensor(maxs[0], maxs[1])):
+                ulens_aabb.append([mins[0], mins[1], maxs[0], maxs[1], ulens[0], ulens[1]]) #min_x, min_y, max_x, max_y, centre x, centre y
 
         cell_dbg_d = img
         cell_infos = []
@@ -128,7 +134,7 @@ class sh_analyser:
         cells_for_calc = []
         for c in cell_infos:
             cr, ct = coordinates.cart_to_polar(c["lens_centre_xy"][0],c["lens_centre_xy"][1] )
-            if cr <= 4.1: #c['intensities'] > cell_int_thresh:
+            if cr <= 4.7 or cr < self.wf_r: #c['intensities'] > cell_int_thresh:
                 cells_for_calc.append(c)
 
 
@@ -146,10 +152,10 @@ class sh_analyser:
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
 
-        plt.imshow(final_img)
-        plt.plot(expected_pos_img_px[:,1], expected_pos_img_px[:,0], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
-        plt.plot(deviation_img_px[:,1], deviation_img_px[:,0], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
-        plt.show()
+        #plt.imshow(final_img)
+        #plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
+        #plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+        #plt.show()
 
         #now actually plot a wavefront
 
@@ -178,33 +184,13 @@ class sh_analyser:
 
         slopes_xy = slopes_xy.T
 
-        print(slopes_xy)
         dr, dt = self.cartesian_grad_to_polar_grad(x/5, y/5, slopes_xy[0], slopes_xy[1])
 
-        from prysm.polynomials import (
-            fringe_to_nm,
-            zernike_nm_der_sequence,
-            zernike_nm_sequence,
-            lstsq,
-            sum_of_2d_modes,
-            nm_to_name
-        )
-        from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_angle
-
-        from prysm.util import rms
-
-
-        normalization_radius = 5 #np.max(r)
-        r = r / normalization_radius
+        r = r / self.wf_r #go from mm to unit circle to allow for fitting
 
         fringe_indices = range(1,10)
         nms = [fringe_to_nm(j) for j in fringe_indices]
-        #nms = [[1,1],[4,0]]
 
-        print("Fitting the following zernikes:")
-        for zpol in nms:
-            print(zpol)
-            print(nm_to_name(zpol[0], zpol[1]))
 
         modes = list(zernike_nm_der_sequence(nms, r, t))
         for m in modes:
@@ -230,11 +216,50 @@ class sh_analyser:
                 print(fit[0])
 
         fit = lstsq(modes, np.array([dr, dt]))
-        print(fit)
+        print("Fits of the following zernikes:")
+        for z in range(0, len(nms)):
+            print(nms[z])
+            print(nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z]))
+
+       
         pak = [[*nm, c] for nm, c in zip(nms, fit)]
         magnitudes = zernikes_to_magnitude_angle(pak)
         barplot_pak = {k: v[0] for k, v in magnitudes.items()}
         barplot_magnitudes(barplot_pak)
+        plt.show()
+
+
+        fig, ax = plt.subplots(figsize=(7,7), subplot_kw={'projection': 'polar'})
+        for z in magnitudes:
+            ax.plot(magnitudes[z][1], magnitudes[z][0], label=z, marker='+')
+
+        plt.legend()
+        ax.set_rlabel_position(-22.5)
+        ax.grid(True)
+
+        ax.set_title("Angle/mag of Zernikes", va='bottom')
+        plt.show()
+
+        #reconstruct full wavefront
+        recon_x, recon_y = coordinates.make_xy_grid(2048, diameter=2)
+        recon_r, recon_t = coordinates.cart_to_polar(recon_x, recon_y)
+        
+
+        reconstructed_phase = np.zeros(recon_x.shape)
+        for f, nm in zip(fit, nms):
+            opd_for_z = f*zernike_nm(nm[0],nm[1],recon_r,recon_t, norm=False)
+            
+            reconstructed_phase += opd_for_z
+
+
+        rp_img = reconstructed_phase.copy()
+        #go back from normalised unit circle zernike land to physical wavefront beam size
+        recon_r *= self.wf_r
+        zernike_mask = geometry.circle(self.wf_r, recon_r)
+        rp_img[zernike_mask!=1]=np.nan
+
+        plt.figure(figsize=(7,7))
+        plt.imshow(rp_img)
         plt.show()
 
 if __name__ == "__main__":
@@ -245,6 +270,7 @@ if __name__ == "__main__":
     parser = ap.ArgumentParser("Shack-Hartmann analyser")
     parser.add_argument("fits_path")
     parser.add_argument("--pixel_size", help="Pixel size in um", type=float)
+    parser.add_argument("--wavefront_radius", help="mm", type=float)
     
     args = parser.parse_args()
 
@@ -261,11 +287,11 @@ if __name__ == "__main__":
     ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
     ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
 
-    ulens_centres_x = [0]
-    ulens_centres_y = [3.0]
+    #ulens_centres_x = [0, 2.1]
+    #ulens_centres_y = [3.0, 2.7]
 
     ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
-    micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_y, ulens_centres_x)
+    micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_x, ulens_centres_y)
 
 
     #micro_lens_positions_x = np.array([0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
@@ -279,7 +305,7 @@ if __name__ == "__main__":
         microlens_positions.append((micro_lens_positions_x[i], micro_lens_positions_y[i]))
 
 
-    a = sh_analyser(microlens_positions, px_x_size=args.pixel_size/1000, px_y_size=args.pixel_size/1000, 
+    a = sh_analyser(microlens_positions, wavefront_radius=5, wvl=0.550, px_x_size=args.pixel_size/1000, px_y_size=args.pixel_size/1000, 
                     sensor_y_px_count=fits_file[0].data.shape[0], sensor_x_px_count=fits_file[0].data.shape[1])
 
     a.analyse(fits_file[0].data)
