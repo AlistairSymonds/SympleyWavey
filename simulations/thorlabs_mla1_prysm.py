@@ -3,29 +3,15 @@
 from prysm import geometry, coordinates, polynomials
 from prysm.propagation import Wavefront as WF
 from prysm.segmented import _local_window
+import numpy as np
 from math import ceil
 import matplotlib.pyplot as plt
-from prysm.conf import config
-
-config.precision = 32
 from astropy.io import fits
+import wavey
 
-gpu = False
 
-import cupy as cp
-from cupyx.scipy import (
-    fft as cpfft,
-    special as cpspecial,
-    ndimage as cpndimage
-)
 
-from prysm.mathops import np, ndimage, special, fft
 
-if gpu:
-    np._srcmodule = cp
-    ndimage._srcmodule = cpndimage
-    special._srcmodule = cpspecial
-    fft._srcmodule = cpfft
 
 def shack_hartmann_phase_screen(x, y, pitch_x, pitch_y, n_x, n_y, efl, wavelength, aperture=geometry.rectangle):
 
@@ -76,7 +62,7 @@ def shack_hartmann_phase_screen(x, y, pitch_x, pitch_y, n_x, n_y, efl, wavelengt
 # also, if you fiddle with the SH-WFS lenslet parameters, they are quite sensitive and easy to drive the model
 # into an undersampled regime (need more samples)
 # or have the lenslet PSFs overlap because the F/# is so big.  Delicate balancing act.
-x, y = coordinates.make_xy_grid(8192, diameter=10)
+x, y = coordinates.make_xy_grid(8192, diameter=12)
 r, t = coordinates.cart_to_polar(x, y)
 dx = x[0,1]-x[0,0]
 
@@ -84,10 +70,17 @@ efl = 4.7
 rmax = 5
 wvl = 0.550
 mask = shack_hartmann_phase_screen(x, y, pitch_x=1, pitch_y=1.4, n_x=10, n_y=7, efl=efl, wavelength=wvl)
-amp = geometry.circle(rmax, r) ^ geometry.circle(0.47*rmax, r)
+amp = geometry.circle(rmax, r) #^ geometry.circle(0.47*rmax, r)
 
-phs = polynomials.zernike_nm(0,0, r/rmax, t) # Zernike flavor spherical aberration
-nwaves_aber = 50
+znorm = True
+phs = polynomials.zernike_nm(4,0, r/rmax, t, norm=znorm) # Zernike flavor spherical aberration
+phs += (polynomials.zernike_nm(2,2, r/rmax, t, norm=znorm)) # Zernike flavor astig
+phs += (polynomials.zernike_nm(2,-2, r/rmax, t, norm=znorm))/2 # Zernike flavor astig
+phs += ((polynomials.zernike_nm(1,-1, r/rmax, t, norm=znorm))) # Zernike flavor tilt in y
+##
+phs += ((polynomials.zernike_nm(3,1, r/rmax, t, norm=znorm))/2) # Coma
+phs += ((polynomials.zernike_nm(3,-3, r/rmax, t, norm=znorm))/6) # Trefoil, we won't try to fit this and instead have it as 'noise'
+nwaves_aber = 5
 phs = phs * (wvl*1e3 * nwaves_aber)
 wf = WF.from_amp_and_phase(amp, phs, .550, dx)
 wf = wf * mask
@@ -95,9 +88,15 @@ wf2 = wf.free_space(dz=efl, Q=1)
 i = wf2.intensity
 i.data /= i.data.max()
 
-print("Plotting")
-#hdu = fits.PrimaryHDU(i.data)
-#hdu.writeto('prysm_sh_capture.fits', overwrite=True)
-fig, ax = plt.subplots(figsize=(12,12))
-i.plot2d(power=1/2,  interpolation='lanczos',  fig=fig, ax=ax)
-plt.show()
+c = wavey.imx174()
+capture174 = c.expose2(i, x, y, 50)
+
+hdu174 = fits.PrimaryHDU(capture174)
+hdu174.writeto('imx174_mla1.fits', overwrite=True)
+
+
+c = wavey.imx533()
+capture533 = c.expose2(i, x, y, 50)
+
+hdu533 = fits.PrimaryHDU(capture533)
+hdu533.writeto('imx533_mla1.fits', overwrite=True)
