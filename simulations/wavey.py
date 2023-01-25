@@ -67,3 +67,58 @@ class imx174(camera):
         pixel_height=5.86/1000.0, 
         sensor_width_npx=1936, 
         sensor_height_npx=1216)
+
+class microlens_array:
+    def __init__(self, lens_centres_xy, lens_cell_corners):
+        self.lens_centres_xy = lens_centres_xy
+        self.lens_cell_corners = lens_cell_corners
+
+    def get_lens_centres(self):
+        return self.lens_centres_xy
+        
+    def get_lens_cell_corners(self):
+        return self.lens_cell_corners
+
+class thorlabs_mla300(microlens_array):
+    def __init__(self):
+        pitch_x = 0.3
+        pitch_y = 0.3
+
+        n_x = 33
+        n_y = 33
+
+        ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
+        ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
+
+        micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_x, ulens_centres_y)
+
+        micro_lens_positions_x = micro_lens_positions_x.flatten()
+        micro_lens_positions_y = micro_lens_positions_y.flatten()
+        lens_centres_xy = []
+        for i in range(micro_lens_positions_x.size):
+            lens_centres_xy.append((micro_lens_positions_x[i], micro_lens_positions_y[i]))
+
+        lens_cell_corners = [[-pitch_x/2,pitch_y/2],[pitch_x/2,pitch_y/2],[pitch_x/2,-pitch_y/2],[-pitch_x/2,-pitch_y/2]]
+        super().__init__(lens_centres_xy, lens_cell_corners)
+
+class thorlabs_mla1(microlens_array):
+    def __init__(self):
+        pitch_x = 1.0
+        pitch_y = 1.4
+
+        n_x = 10
+        n_y = 7
+
+        ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
+        ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
+
+        micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_x, ulens_centres_y)
+
+        micro_lens_positions_x = micro_lens_positions_x.flatten()
+        micro_lens_positions_y = micro_lens_positions_y.flatten()
+        lens_centres_xy = []
+        for i in range(micro_lens_positions_x.size):
+            lens_centres_xy.append((micro_lens_positions_x[i], micro_lens_positions_y[i]))
+
+        lens_cell_corners = [[-pitch_x/2,pitch_y/2],[pitch_x/2,pitch_y/2],[pitch_x/2,-pitch_y/2],[-pitch_x/2,-pitch_y/2]]
+        super().__init__(lens_centres_xy, lens_cell_corners)

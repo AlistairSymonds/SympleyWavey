@@ -89,7 +89,7 @@ i = wf2.intensity
 i.data /= i.data.max()
 
 c = wavey.imx174()
-capture174 = c.expose2(i, x, y, 50)
+capture174 = c.expose2(i, x, y, 500)
 
 hdu174 = fits.PrimaryHDU(capture174)
 hdu174.writeto('imx174_mla1.fits', overwrite=True)

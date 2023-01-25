@@ -8,10 +8,12 @@ from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_
 
 from prysm.util import rms
 
+#todo: aperture masks and rework the silly pitch_x/pitch_y of lens array into something more sensible
 
 class sh_analyser:
-    def __init__(self, microlens_positions, wavefront_radius, wvl, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count):
+    def __init__(self, microlens_positions, microlens_cell_corners, wavefront_radius, wvl, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count):
         self.microlens_positions = microlens_positions
+        self.microlens_cell_corners = microlens_cell_corners
         self.sensor_x_pitch = px_x_size
         self.sensor_y_pitch = px_y_size
         self.sensor_x_px_count = sensor_x_px_count
@@ -69,11 +71,11 @@ class sh_analyser:
         
         ulens_aabb = []
         for ulens in microlens_positions:
-            lens_corners = np.empty(shape=(len(ulens_cell_corners),2))
-            for cnr_idx in range(len(ulens_cell_corners)):
-                cnr = ulens_cell_corners[cnr_idx]
-                cnr_x = (cnr[0] * pitch_x) + ulens[0]
-                cnr_y = (cnr[1] * pitch_y) + ulens[1]
+            lens_corners = np.empty(shape=(len(self.microlens_cell_corners),2))
+            for cnr_idx in range(len(self.microlens_cell_corners)):
+                cnr = self.microlens_cell_corners[cnr_idx]
+                cnr_x = cnr[0] + ulens[0]
+                cnr_y = cnr[1] + ulens[1]
                 lens_corners[cnr_idx][0] = cnr_x
                 lens_corners[cnr_idx][1] = cnr_y
             maxs = np.max(lens_corners, axis=0)     
@@ -152,10 +154,10 @@ class sh_analyser:
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
 
-        #plt.imshow(final_img)
-        #plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
-        #plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
-        #plt.show()
+        plt.imshow(final_img)
+        plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
+        plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+        plt.show()
 
         #now actually plot a wavefront
 
@@ -264,48 +266,30 @@ class sh_analyser:
 
 if __name__ == "__main__":
     import argparse as ap
-    
+    import wavey
     from astropy.io import fits
     from pathlib import Path
     parser = ap.ArgumentParser("Shack-Hartmann analyser")
     parser.add_argument("fits_path")
     parser.add_argument("--pixel_size", help="Pixel size in um", type=float)
     parser.add_argument("--wavefront_radius", help="mm", type=float)
+    parser.add_argument("--microlens", help="Which type of microlens array was used", choices=["mla300", "mla1"])
     
     args = parser.parse_args()
 
     fits_path = Path(args.fits_path)
     fits_file = fits.open(fits_path)
+    ulens_arr = None
+    if args.microlens == "mla300":
+        ulens_arr = wavey.thorlabs_mla300()
+    elif args.microlens == "mla1": 
+        ulens_arr = wavey.thorlabs_mla1()
+
+    microlens_positions = ulens_arr.get_lens_centres()
+    micro_lens_corners = ulens_arr.get_lens_cell_corners()
+
     print("analysing...")
-
-    pitch_x = 0.3
-    pitch_y = pitch_x
-
-    n_x = 33
-    n_y = 33
-
-    ulens_centres_x = np.linspace(-((pitch_x*(n_x-1))/2), ((pitch_x*(n_x-1))/2), n_x)
-    ulens_centres_y = np.linspace(-((pitch_y*(n_y-1))/2), ((pitch_y*(n_y-1))/2), n_y)
-
-    #ulens_centres_x = [0, 2.1]
-    #ulens_centres_y = [3.0, 2.7]
-
-    ulens_cell_corners = [[-0.5,0.5],[0.5,0.5],[0.5,-0.5],[-0.5,-0.5]]
-    micro_lens_positions_x, micro_lens_positions_y = np.meshgrid(ulens_centres_x, ulens_centres_y)
-
-
-    #micro_lens_positions_x = np.array([0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
-    #micro_lens_positions_y = np.array([0,   0,   0,   0,   0,   0,    0,   0,   0,   0,   0,   0,   0,    0,  0, 0.3, 0.6, 0.9, 1.2, 1.5, 1.8, 2.1, 2.4, 2.7, 3.0, 3.3, 3.6, 3.9, 4.2])
-
-    micro_lens_positions_x = micro_lens_positions_x.flatten()
-    micro_lens_positions_y = micro_lens_positions_y.flatten()
-
-    microlens_positions = []
-    for i in range(micro_lens_positions_x.size):
-        microlens_positions.append((micro_lens_positions_x[i], micro_lens_positions_y[i]))
-
-
-    a = sh_analyser(microlens_positions, wavefront_radius=5, wvl=0.550, px_x_size=args.pixel_size/1000, px_y_size=args.pixel_size/1000, 
+    a = sh_analyser(microlens_positions, microlens_cell_corners=micro_lens_corners, wavefront_radius=5, wvl=0.550, px_x_size=args.pixel_size/1000, px_y_size=args.pixel_size/1000, 
                     sensor_y_px_count=fits_file[0].data.shape[0], sensor_x_px_count=fits_file[0].data.shape[1])
 
     a.analyse(fits_file[0].data)
