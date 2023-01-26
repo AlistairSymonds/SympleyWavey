@@ -8,7 +8,7 @@
             "name": "SH analyse mla-300 imx174",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/simulations/sh_analyse.py",
+            "program": "${workspaceFolder}/analyse_single_frame.py",
             "args": ["imx174_mla300.fits", "--pixel_size=5.86","--microlens=mla300"],
             "console": "integratedTerminal",
             "justMyCode": true
@@ -17,7 +17,7 @@
             "name": "SH analyse mla-1 imx174",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/simulations/sh_analyse.py",
+            "program": "${workspaceFolder}/analyse_single_frame.py",
             "args": ["imx174_mla1.fits", "--pixel_size=5.86","--microlens=mla1"],
             "console": "integratedTerminal",
             "justMyCode": true
