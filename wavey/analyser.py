@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.ndimage
 from prysm import geometry, coordinates
-from prysm.polynomials import zernike_nm, zernike_nm_der_sequence, lstsq, nm_to_name, fringe_to_nm
+from prysm.polynomials import zernike_nm, zernike_nm_der_sequence, lstsq, nm_to_name, fringe_to_nm, zernike_nm_der
 
 from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_angle
 
@@ -140,7 +140,6 @@ class ShackHartmannAnalyser:
                 cells_for_calc.append(c)
 
 
-        final_img = img
         expected_pos_img_px = np.zeros((len(cells_for_calc),2))
         deviation_img_px    = np.zeros((len(cells_for_calc),2))
         for cell_idx in range(len(cells_for_calc)):
@@ -153,7 +152,7 @@ class ShackHartmannAnalyser:
         
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
-
+        #final_img = img
         #plt.imshow(final_img)
         #plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
         #plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
@@ -220,8 +219,7 @@ class ShackHartmannAnalyser:
         fit = lstsq(modes, np.array([dr, dt]))
         print("Fits of the following zernikes:")
         for z in range(0, len(nms)):
-            print(nms[z])
-            print(nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z]))
+            print(str(nms[z]) + nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z]))
 
        
         pak = [[*nm, c] for nm, c in zip(nms, fit)]
@@ -248,18 +246,36 @@ class ShackHartmannAnalyser:
         
 
         reconstructed_phase = np.zeros(recon_x.shape)
+        reconstructed_dZdr = np.zeros(recon_x.shape)
+        reconstructed_dZdt = np.zeros(recon_x.shape)
+
         for f, nm in zip(fit, nms):
             opd_for_z = f*zernike_nm(nm[0],nm[1],recon_r,recon_t, norm=False)
-            
+            dZdr, dZdt = zernike_nm_der(nm[0],nm[1],recon_r,recon_t, norm=False)
             reconstructed_phase += opd_for_z
+            reconstructed_dZdr += (f*dZdr) 
+            reconstructed_dZdt += (f*dZdt)
 
 
         rp_img = reconstructed_phase.copy()
+        dZdr_img = reconstructed_dZdr.copy()
+        dZdt_img = reconstructed_dZdt.copy()
         #go back from normalised unit circle zernike land to physical wavefront beam size
         recon_r *= self.wf_r
         zernike_mask = geometry.circle(self.wf_r, recon_r)
         rp_img[zernike_mask!=1]=np.nan
+        dZdr_img[zernike_mask!=1]=np.nan
+        dZdt_img[zernike_mask!=1]=np.nan
 
         plt.figure(figsize=(7,7))
         plt.imshow(rp_img)
         plt.show()
+
+        fig = plt.figure(figsize=plt.figaspect(1))  
+        ax = fig.add_subplot(1, 2, 1)
+        ax.imshow(dZdr_img)
+        
+        ax = fig.add_subplot(1, 2, 2)
+        ax.imshow(dZdt_img)
+        plt.show()
+        return None

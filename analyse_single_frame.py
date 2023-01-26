@@ -16,7 +16,7 @@ if __name__ == "__main__":
     fits_file = fits.open(fits_path)
     ulens_arr = None
     if args.microlens == "mla300":
-        ulens_arr = microlens_array.ThorlabsMLA300
+        ulens_arr = microlens_array.ThorlabsMLA300()
     elif args.microlens == "mla1": 
         ulens_arr = microlens_array.ThorlabsMLA1()
 
@@ -27,4 +27,4 @@ if __name__ == "__main__":
     a = analyser.ShackHartmannAnalyser(microlens_positions, microlens_cell_corners=micro_lens_corners, wavefront_radius=5, wvl=0.550, px_x_size=args.pixel_size/1000, px_y_size=args.pixel_size/1000, 
                     sensor_y_px_count=fits_file[0].data.shape[0], sensor_x_px_count=fits_file[0].data.shape[1])
 
-    a.analyse(fits_file[0].data)
+    r = a.analyse(fits_file[0].data)
