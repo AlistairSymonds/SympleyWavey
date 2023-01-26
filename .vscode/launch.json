@@ -21,6 +21,15 @@
             "args": ["imx174_mla1.fits", "--pixel_size=5.86","--microlens=mla1"],
             "console": "integratedTerminal",
             "justMyCode": true
+        },
+        {
+            "name": "SH gen",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/generate_sh_frame.py",
+            "args": ["--wavelength=0.55","--microlens=mla1", "--aperture=circle","--wavefront_radius=5", "--sensor=imx174"],
+            "console": "integratedTerminal",
+            "justMyCode": true
         }
     ]
 }

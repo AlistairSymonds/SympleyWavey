@@ -46,6 +46,9 @@ class MicrolensArray:
 
         prefix = -1j * 2 * np.pi/(wavelength/1e3)
         return np.exp(prefix*total_phase)
+    
+    def get_fl(self):
+        return self.fl
 
 
 class ThorlabsMLA300(MicrolensArray):
