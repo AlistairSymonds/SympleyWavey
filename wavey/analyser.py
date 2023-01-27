@@ -217,9 +217,10 @@ class ShackHartmannAnalyser:
                 print(fit[0])
 
         fit = lstsq(modes, np.array([dr, dt]))
+        fit = fit * (self.wvl*1e3)
         print("Fits of the following zernikes:")
         for z in range(0, len(nms)):
-            print(str(nms[z]) + nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z]))
+            print(str(nms[z]) + " " + nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z]))
 
        
         pak = [[*nm, c] for nm, c in zip(nms, fit)]
@@ -250,8 +251,8 @@ class ShackHartmannAnalyser:
         reconstructed_dZdt = np.zeros(recon_x.shape)
 
         for f, nm in zip(fit, nms):
-            opd_for_z = f*zernike_nm(nm[0],nm[1],recon_r,recon_t, norm=False)
-            dZdr, dZdt = zernike_nm_der(nm[0],nm[1],recon_r,recon_t, norm=False)
+            opd_for_z = f*zernike_nm(nm[0],nm[1],recon_r,recon_t)
+            dZdr, dZdt = zernike_nm_der(nm[0],nm[1],recon_r,recon_t)
             reconstructed_phase += opd_for_z
             reconstructed_dZdr += (f*dZdr) 
             reconstructed_dZdt += (f*dZdt)

@@ -1,5 +1,5 @@
 import argparse as ap
-from wavey import microlens_array, sensor
+from wavey import microlens_array, sensor, wavefronts
 from astropy.io import fits
 from pathlib import Path
 from prysm import geometry, coordinates
@@ -8,6 +8,7 @@ from prysm.propagation import Wavefront as WF
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+from pathlib import Path
 if __name__ == "__main__":
 
     parser = ap.ArgumentParser("Shack-Hartmann analyser")
@@ -16,12 +17,13 @@ if __name__ == "__main__":
     parser.add_argument("--wavelength", help="in micron", type=float)
     parser.add_argument("--microlens", help="Which type of microlens array was used", choices=["mla300", "mla1"])
     parser.add_argument("--aperture", choices=["circle", "RC8", "RC12", "Hubble", "JWST"])
+    parser.add_argument("--output_dir", default="")
     
     args = parser.parse_args()
 
     wf_r = args.wavefront_radius
-
-    x, y = coordinates.make_xy_grid(8192, diameter=12)
+    samples = 8192
+    x, y = coordinates.make_xy_grid(samples, diameter=12)
     r, t = coordinates.cart_to_polar(x, y)
     dx = x[0,1]-x[0,0]
 
@@ -48,28 +50,28 @@ if __name__ == "__main__":
     micro_lens_corners = ulens_arr.get_lens_cell_corners()
 
     ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
-    plt.imshow(np.angle(ulens_phase))
-    plt.show()
 
-    phs = np.zeros((8192,8192))
-    fringe_indices = range(2,10)
+    phs = np.zeros((samples,samples))
+    max_waves_aber = 10
+    fringe_indices = range(5,9)
+    zernike_values = {}
     for fi in fringe_indices:
-        n, m = fringe_to_nm(fi)
-        weight = random.random()
-        phs += (weight * zernike_nm(n, m, r/wf_r, t))
-        print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
+        if fi != 4:
+            n, m = fringe_to_nm(fi)
+            weight = random.random() * max_waves_aber
+            phs += (weight * zernike_nm(n, m, r/wf_r, t))
+            zernike_values[(n, m)] = weight
+            print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
 
+    
+    wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, zernike_values)
+    (dr, dt) = wf_data.gen_der_wf(r/wf_r, t)
+    wavefronts.plot_zernike_der(dr, dt, r/wf_r, t)
 
-    nwaves_aber = 5
-    phs = phs * (args.wavelength*1e3 * nwaves_aber)
-    if True:
-        phi2 = phs.copy()
-        phi2[amp!=1]=np.nan
-        plt.imshow(phi2)
-        plt.show()
-
+    phs = phs * (args.wavelength*1e3)
     wf = WF.from_amp_and_phase(amp, phs, args.wavelength, dx)
     wf = wf * ulens_phase
+    print("propagating wf")
     wf2 = wf.free_space(dz=ulens_arr.get_fl(), Q=1)
     i = wf2.intensity
     i.data /= i.data.max()
@@ -79,4 +81,3 @@ if __name__ == "__main__":
 
     hdu174 = fits.PrimaryHDU(capture174)
     hdu174.writeto('imx174_mla1.fits', overwrite=True)
-

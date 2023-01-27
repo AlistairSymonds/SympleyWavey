@@ -41,7 +41,7 @@ class MicrolensArray:
             ly = y[iy, ix] - yy
             rsq = lx * lx + ly * ly
             phase = rsq / (2*self.fl)
-            phase *= aperture(width=self.pitch_x, height=self.pitch_y, x=lx, y=ly)
+            phase *= aperture(width=self.pitch_x/2, height=self.pitch_y/2, x=lx, y=ly)
             total_phase[iy, ix] += phase
 
         prefix = -1j * 2 * np.pi/(wavelength/1e3)
