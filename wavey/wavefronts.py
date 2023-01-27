@@ -11,9 +11,9 @@ class WavefrontAnalysis:
     
 
     def gen_wf(self, r, t):
-        Z = np.zeroes()
-        for (n,m), waves in enumerate(self.z_wv):
-            Z += (waves * zernike_nm(n, m, r, t))
+        Z = np.zeros_like(r)
+        for nm in (self.z_wv):
+            Z += (self.z_wv[nm] * zernike_nm(nm[0], nm[1], r, t))
 
     def gen_der_wf(self, r, t):
         dZdr = np.zeros_like(r)

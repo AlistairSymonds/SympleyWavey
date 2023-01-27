@@ -12,6 +12,7 @@ from pathlib import Path
 if __name__ == "__main__":
 
     parser = ap.ArgumentParser("Shack-Hartmann analyser")
+    parser.add_argument("--seed", help="Seed value for python's rand to be used during wavefront generation", type=int, default=1)
     parser.add_argument("--sensor", help="Sensor type", choices=["imx174", "im533"])
     parser.add_argument("--wavefront_radius", help="mm", type=float)
     parser.add_argument("--wavelength", help="in micron", type=float)
@@ -20,6 +21,8 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", default="")
     
     args = parser.parse_args()
+
+    random.seed(args.seed)
 
     wf_r = args.wavefront_radius
     samples = 8192
@@ -46,14 +49,10 @@ if __name__ == "__main__":
 
     
 
-    microlens_positions = ulens_arr.get_lens_centres()
-    micro_lens_corners = ulens_arr.get_lens_cell_corners()
-
-    ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
-
     phs = np.zeros((samples,samples))
-    max_waves_aber = 10
-    fringe_indices = range(5,9)
+    max_waves_aber = 1
+    fringe_indices = range(1,10)
+    fringe_indices = [7]
     zernike_values = {}
     for fi in fringe_indices:
         if fi != 4:
@@ -65,11 +64,27 @@ if __name__ == "__main__":
 
     
     wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, zernike_values)
-    (dr, dt) = wf_data.gen_der_wf(r/wf_r, t)
-    wavefronts.plot_zernike_der(dr, dt, r/wf_r, t)
+    #(dr, dt) = wf_data.gen_der_wf(r/wf_r, t)
+    #wavefronts.plot_zernike_der(dr, dt, r/wf_r, t)
 
-    phs = phs * (args.wavelength*1e3)
-    wf = WF.from_amp_and_phase(amp, phs, args.wavelength, dx)
+    #z = wf_data.gen_wf(r/wf_r, t)
+    #wavefronts.plot_zernike(z, r/wf_r, t)
+
+    run_path = Path("runs")
+    run_path = run_path / str(args.seed)
+    run_path.mkdir(parents=True, exist_ok=True)
+
+    #TODO
+    #for ulens array in ulens types
+    #    for sensor in sensors
+    #        all code below but loopified
+    microlens_positions = ulens_arr.get_lens_centres()
+    micro_lens_corners = ulens_arr.get_lens_cell_corners()
+
+    ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
+
+    path_error_nm = phs * (args.wavelength*1e3)
+    wf = WF.from_amp_and_phase(amp, path_error_nm, args.wavelength, dx)
     wf = wf * ulens_phase
     print("propagating wf")
     wf2 = wf.free_space(dz=ulens_arr.get_fl(), Q=1)
@@ -80,4 +95,4 @@ if __name__ == "__main__":
     capture174 = c.expose2(i, x, y, 500)
 
     hdu174 = fits.PrimaryHDU(capture174)
-    hdu174.writeto('imx174_mla1.fits', overwrite=True)
+    hdu174.writeto(run_path / 'imx174_mla1.fits', overwrite=True)
