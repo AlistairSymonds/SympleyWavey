@@ -9,6 +9,7 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from pathlib import Path
+import json
 if __name__ == "__main__":
 
     parser = ap.ArgumentParser("Shack-Hartmann analyser")
@@ -30,18 +31,9 @@ if __name__ == "__main__":
     r, t = coordinates.cart_to_polar(x, y)
     dx = x[0,1]-x[0,0]
 
-    ulens_arr = None
-    if args.microlens == "mla300":
-        ulens_arr = microlens_array.ThorlabsMLA300()
-    elif args.microlens == "mla1": 
-        ulens_arr = microlens_array.ThorlabsMLA1()
-
+    ulens_arrays = [microlens_array.ThorlabsMLA300(), microlens_array.ThorlabsMLA1()]
    
-    s = None
-    if args.sensor == "imx533":
-        s = sensor.imx533()
-    elif args.sensor == "imx174": 
-        s = sensor.imx174()
+    image_sensors = [sensor.imx533(), sensor.imx174()]
     
     amp = None
     if args.aperture == "circle":
@@ -51,46 +43,50 @@ if __name__ == "__main__":
 
     phs = np.zeros((samples,samples))
     max_waves_aber = 1
-    fringe_indices = range(1,10)
+    fringe_indices = range(2,17)
     zernike_values = {}
     for fi in fringe_indices:
-            n, m = fringe_to_nm(fi)
-            weight = random.random() * max_waves_aber
-            phs += (weight * zernike_nm(n, m, r/wf_r, t))
-            zernike_values[(n, m)] = weight
-            print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
+        n, m = fringe_to_nm(fi)
+        weight = random.random() * max_waves_aber
+        phs += (weight * zernike_nm(n, m, r/wf_r, t))
+        zernike_values[fi] = weight
+        print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
 
     
     wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, zernike_values)
-    #(dr, dt) = wf_data.gen_der_wf(r/wf_r, t)
-    #wavefronts.plot_zernike_der(dr, dt, r/wf_r, t)
+    ximg, yimg = coordinates.make_xy_grid(2048, diameter=2)
+    rimg, timg = coordinates.cart_to_polar(ximg, yimg)
 
-    #z = wf_data.gen_wf(r/wf_r, t)
-    #wavefronts.plot_zernike(z, r/wf_r, t)
+    (dr, dt) = wf_data.gen_der_wf(rimg, timg)
+    wavefronts.plot_zernike_der(dr, dt, rimg, timg)
+
+    z = wf_data.gen_wf(rimg, timg)
+    wavefronts.plot_zernike(z, rimg, timg)
 
     run_path = Path("runs")
     run_path = run_path / str(args.seed)
     run_path.mkdir(parents=True, exist_ok=True)
 
-    #TODO
-    #for ulens array in ulens types
-    #    for sensor in sensors
-    #        all code below but loopified
-    microlens_positions = ulens_arr.get_lens_centres()
-    micro_lens_corners = ulens_arr.get_lens_cell_corners()
+    
+    with open(run_path / "generated_wave_zernike.json", "w") as f:
+        json.dump(zernike_values, f)
 
-    ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
 
-    path_error_nm = phs * (args.wavelength*1e3)
-    wf = WF.from_amp_and_phase(amp, path_error_nm, args.wavelength, dx)
-    wf = wf * ulens_phase
-    print("propagating wf")
-    wf2 = wf.free_space(dz=ulens_arr.get_fl(), Q=1)
-    i = wf2.intensity
-    i.data /= i.data.max()
+    for ulens_arr in ulens_arrays:
+        microlens_positions = ulens_arr.get_lens_centres()
+        micro_lens_corners = ulens_arr.get_lens_cell_corners()
 
-    c = sensor.imx174()
-    capture174 = c.expose2(i, x, y, 500)
+        ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
 
-    hdu174 = fits.PrimaryHDU(capture174)
-    hdu174.writeto(run_path / 'imx174_mla1.fits', overwrite=True)
+        path_error_nm = phs * (args.wavelength*1e3)
+        wf = WF.from_amp_and_phase(amp, path_error_nm, args.wavelength, dx)
+        wf = wf * ulens_phase
+        print("propagating wf")
+        wf2 = wf.free_space(dz=ulens_arr.get_fl(), Q=1)
+        i = wf2.intensity
+        i.data /= i.data.max()
+
+        for s in image_sensors:
+            capture = s.expose2(i, x, y, 500)
+            hdu = fits.PrimaryHDU(capture)
+            hdu.writeto(run_path / f"{s.__class__.__name__}_{ulens_arr.__class__.__name__}.fits", overwrite=True)
