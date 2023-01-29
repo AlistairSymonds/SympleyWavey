@@ -18,7 +18,7 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/analyse_single_frame.py",
-            "args": ["imx174_mla1.fits", "--pixel_size=5.86","--microlens=mla1"],
+            "args": ["runs/1/imx174_mla1.fits", "--pixel_size=5.86","--microlens=mla1"],
             "console": "integratedTerminal",
             "justMyCode": true
         },

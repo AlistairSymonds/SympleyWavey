@@ -52,10 +52,8 @@ if __name__ == "__main__":
     phs = np.zeros((samples,samples))
     max_waves_aber = 1
     fringe_indices = range(1,10)
-    fringe_indices = [7]
     zernike_values = {}
     for fi in fringe_indices:
-        if fi != 4:
             n, m = fringe_to_nm(fi)
             weight = random.random() * max_waves_aber
             phs += (weight * zernike_nm(n, m, r/wf_r, t))

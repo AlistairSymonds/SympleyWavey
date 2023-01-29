@@ -189,7 +189,7 @@ class ShackHartmannAnalyser:
 
         r = r / self.wf_r #go from mm to unit circle to allow for fitting
 
-        fringe_indices = range(1,10)
+        fringe_indices = range(4,15) # skip fitting piston and tip/tilt only going to overfit and cause cross talk
         nms = [fringe_to_nm(j) for j in fringe_indices]
 
 
