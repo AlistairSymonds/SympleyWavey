@@ -52,3 +52,5 @@ def zernike_nm_der_acosta(n, m, r, t, norm=True):
     elif n == 4 and m == 4:
         dr = ((r ** 5)/4) * (-1*np.cos(4*t))
         dt = 0
+    
+    return dr, dt
