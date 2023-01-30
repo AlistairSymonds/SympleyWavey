@@ -7,6 +7,7 @@ from prysm.polynomials import zernike_nm, zernike_nm_der_sequence, lstsq, nm_to_
 from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_angle
 
 from prysm.util import rms
+from .polynomial import zernike_nm_der_acosta_sequence
 
 #todo: aperture masks and rework the silly pitch_x/pitch_y of lens array into something more sensible
 
@@ -110,8 +111,8 @@ class ShackHartmannAnalyser:
             #need to flip y to go from pixel (Top left, pos down and right) to optical coords (0,0 centre)
             cell_size_y = ulens[3] - ulens[1]
             cell_size_x = ulens[2] - ulens[0]
-            centroid[0] = cell_size_y - centroid[0]
-            centroid[0] = centroid[0] - (cell_size_y/2)
+            centroid[0] = centroid[0] * -1 #flip y direction
+            centroid[0] = centroid[0] + (cell_size_y/2) #add offset (compared to x which subtracts an offset due to being in same dir)
             centroid[1] = centroid[1] - (cell_size_x/2)
             intensities = np.sort(cell, axis=None)[-8:]
 
@@ -189,32 +190,11 @@ class ShackHartmannAnalyser:
 
         r = r / self.wf_r #go from mm to unit circle to allow for fitting
 
-        fringe_indices = range(4,15) # skip fitting piston and tip/tilt only going to overfit and cause cross talk
+        fringe_indices = range(5, 10) # skip fitting piston
         nms = [fringe_to_nm(j) for j in fringe_indices]
 
 
         modes = list(zernike_nm_der_sequence(nms, r, t))
-        for m in modes:
-            if False:
-                fig = plt.figure(figsize=plt.figaspect(1))
-                mxy = polar_gradient_to_cartesian_grad(r,t,m[0],m[1])
-                ax = fig.add_subplot(2, 2, 1, projection='3d')
-                ax.plot(r,t,m[0], linestyle='None', marker = '+')
-                
-                ax = fig.add_subplot(2, 2, 2, projection='3d')
-                ax.plot(r,t, dr, linestyle='None', marker = 'o')
-
-                ax = fig.add_subplot(2, 2, 3, projection='3d')
-                ax.plot(r,t,m[1], linestyle='None', marker = '+')
-
-                ax = fig.add_subplot(2, 2, 4, projection='3d')
-                ax.plot(r,t, dt, linestyle='None', marker = 'o')
-
-                plt.show()
-                m_np = np.array(m).T
-                measured_polar_slopes = np.array([dr, dt]).T
-                fit = np.linalg.lstsq(m_np, measured_polar_slopes)
-                print(fit[0])
 
         fit = lstsq(modes, np.array([dr, dt]))
         fit = fit * (self.wvl*1e3)
@@ -259,24 +239,13 @@ class ShackHartmannAnalyser:
 
 
         rp_img = reconstructed_phase.copy()
-        dZdr_img = reconstructed_dZdr.copy()
-        dZdt_img = reconstructed_dZdt.copy()
         #go back from normalised unit circle zernike land to physical wavefront beam size
         recon_r *= self.wf_r
         zernike_mask = geometry.circle(self.wf_r, recon_r)
         rp_img[zernike_mask!=1]=np.nan
-        dZdr_img[zernike_mask!=1]=np.nan
-        dZdt_img[zernike_mask!=1]=np.nan
 
         plt.figure(figsize=(7,7))
         plt.imshow(rp_img)
         plt.show()
 
-        fig = plt.figure(figsize=plt.figaspect(1))  
-        ax = fig.add_subplot(1, 2, 1)
-        ax.imshow(dZdr_img)
-        
-        ax = fig.add_subplot(1, 2, 2)
-        ax.imshow(dZdt_img)
-        plt.show()
         return None
