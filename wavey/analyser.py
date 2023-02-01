@@ -231,9 +231,9 @@ class ShackHartmannAnalyser:
         reconstructed_dZdt = np.zeros(recon_x.shape)
 
         for f, nm in zip(fit, nms):
-            opd_for_z = f*zernike_nm(nm[0],nm[1],recon_r,recon_t)
+            z = zernike_nm(nm[0],nm[1],recon_r,recon_t)
             dZdr, dZdt = zernike_nm_der(nm[0],nm[1],recon_r,recon_t)
-            reconstructed_phase += opd_for_z
+            reconstructed_phase += (f*z)
             reconstructed_dZdr += (f*dZdr) 
             reconstructed_dZdt += (f*dZdt)
 
