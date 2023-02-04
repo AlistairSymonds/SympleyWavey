@@ -43,10 +43,10 @@ if __name__ == "__main__":
 
     phs = np.zeros((samples,samples))
     max_waves_aber = 1
-    num_aberations = random.randint(1, 8)
+    num_aberations = random.randint(1, 4)
     fringe_indices = []
     for i in range(0, num_aberations):
-        fringe_indices.append(random.randint(1, 17))
+        fringe_indices.append(random.randint(3, 10))
     
     fringe_indices.sort()
 
@@ -54,8 +54,6 @@ if __name__ == "__main__":
     for fi in fringe_indices:
         n, m = fringe_to_nm(fi)
         weight = random.random() * max_waves_aber
-        if fi == 6:
-            weight *= 10
         phs += (weight * zernike_nm(n, m, r/wf_r, t))
         zernike_values[fi] = weight
         print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
@@ -94,4 +92,6 @@ if __name__ == "__main__":
         for s in image_sensors:
             capture = s.expose2(i, x, y, 500)
             hdu = fits.PrimaryHDU(capture)
+            hdu.header['XPIXSZ'] = s.pixel_width * 1000
+            hdu.header['YPIXSZ'] = s.pixel_height * 1000
             hdu.writeto(run_path / f"{s.__class__.__name__}_{ulens_arr.__class__.__name__}.fits", overwrite=True)
