@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/analyse_single_frame.py",
-            "args": ["runs/1/imx533_ThorlabsMLA300.fits", "--pixel_size=3.76","--microlens=mla1"],
+            "args": ["runs/1/imx533_ThorlabsMLA300.fits", "--pixel_size=3.76","--microlens=mla300"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -18,7 +18,7 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/analyse_single_frame.py",
-            "args": ["runs/1/imx174_ThorlabsMLA300.fits", "--pixel_size=5.86","--microlens=mla1"],
+            "args": ["runs/1/imx174_ThorlabsMLA300.fits", "--pixel_size=5.86","--microlens=mla300"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
