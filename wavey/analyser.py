@@ -12,7 +12,7 @@ from .wavefronts import WavefrontAnalysis
 #todo: aperture masks and rework the silly pitch_x/pitch_y of lens array into something more sensible
 
 class ShackHartmannAnalyser:
-    def __init__(self, microlens_positions, microlens_cell_corners, wavefront_radius, wvl, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count):
+    def __init__(self, microlens_positions, microlens_cell_corners, wavefront_radius, wvl, px_x_size, px_y_size, sensor_x_px_count, sensor_y_px_count, debug=False):
         self.microlens_positions = microlens_positions
         self.microlens_cell_corners = microlens_cell_corners
         self.sensor_x_pitch = px_x_size
@@ -21,6 +21,7 @@ class ShackHartmannAnalyser:
         self.sensor_y_px_count = sensor_y_px_count
         self.wf_r = wavefront_radius
         self.wvl = wvl
+        self.debug = debug
 
         
     #assuming 0,0 is top left....
@@ -68,8 +69,8 @@ class ShackHartmannAnalyser:
             return False
 
 
-    def analyse(self, img) -> WavefrontAnalysis:
-        
+    def calculate_spot_deviations(self, img):
+
         ulens_aabb = []
         for ulens in self.microlens_positions:
             lens_corners = np.empty(shape=(len(self.microlens_cell_corners),2))
@@ -153,18 +154,16 @@ class ShackHartmannAnalyser:
         
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
-        final_img = img
-        plt.imshow(final_img)
-        plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
-        plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
-        plt.show()
+        #final_img = img
+        #plt.imshow(final_img)
+        #plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
+        #plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+        #plt.show()
 
         #now actually plot a wavefront
 
         x = np.zeros((len(cells_for_calc)))
         y = np.zeros((len(cells_for_calc)))
-        r = np.zeros((len(cells_for_calc)))
-        t = np.zeros((len(cells_for_calc)))
         slopes_xy = np.zeros( (len(cells_for_calc),2))
 
 
@@ -175,14 +174,16 @@ class ShackHartmannAnalyser:
             x[cell_idx] = cells_for_calc[cell_idx]["lens_centre_xy"][0]
             y[cell_idx] = cells_for_calc[cell_idx]["lens_centre_xy"][1]
 
-            #slope_xy  = (cells_for_calc[cell_idx]["centroid_xy"]+ cells_for_calc[cell_idx]["corner_xy"]) - cells_for_calc[cell_idx]["lens_centre_xy"]
-            r[cell_idx], t[cell_idx] = coordinates.cart_to_polar(x[cell_idx], y[cell_idx])
-
             centroid_in_img = cells_for_calc[cell_idx]["centroid_xy"]  + cells_for_calc[cell_idx]["lens_centre_xy"]
             expected_in_img = cells_for_calc[cell_idx]["lens_centre_xy"]
             slopes_xy[cell_idx] = centroid_in_img - expected_in_img
 
+        return ((x,y), slopes_xy)
 
+    def analyse(self, img) -> WavefrontAnalysis:
+
+        ((x,y), slopes_xy) = self.calculate_spot_deviations(img)
+        r, t = coordinates.cart_to_polar(x, y, vec_to_grid=False)
 
         slopes_xy = slopes_xy.T
 
@@ -190,7 +191,7 @@ class ShackHartmannAnalyser:
 
         r = r / self.wf_r #go from mm to unit circle to allow for fitting
 
-        fringe_indices = range(1, 20) # skip fitting piston
+        fringe_indices = range(3, 25) # skip fitting piston
         nms = [fringe_to_nm(j) for j in fringe_indices]
 
 
