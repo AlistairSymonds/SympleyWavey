@@ -5,18 +5,20 @@ class Sensor(detector.Detector):
     def __init__(self, dark_current, read_noise, bias, fwc, conversion_gain, bits, exposure_time, pixel_width, pixel_height, sensor_width_npx, sensor_height_npx):
         super().__init__(dark_current, read_noise, bias, fwc, conversion_gain, bits, exposure_time)
 
-        self.sensor_width_npx = sensor_width_npx
+        self.sensor_width_npx  = sensor_width_npx
         self.sensor_height_npx = sensor_height_npx
-        self.sensor_width = pixel_width * sensor_width_npx
-        self.sensor_height = pixel_height * sensor_height_npx
+        self.pixel_width = pixel_width 
+        self.pixel_height = pixel_height
 
     def expose2(self, sim_image, sim_x, sim_y, peak_eminus):
     
         #warning warning warning to future me: simulation plane needs to be larger than sensor plane
 
+        width  = self.pixel_width  * self.sensor_width_npx  
+        height = self.pixel_height * self.sensor_height_npx 
         #now we need to take the area the the sensor will observe out of the simulation coordinate space and convert to pixels
-        sensor_area_x = (self.sensor_width/2  >= sim_x) & (-1*self.sensor_width/2  <= sim_x)
-        sensor_area_y = (self.sensor_height/2 >= sim_y) & (-1*self.sensor_height/2  <= sim_y)
+        sensor_area_x = (width/2  >= sim_x) & (-1*width/2  <= sim_x)
+        sensor_area_y = (height/2 >= sim_y) & (-1*height/2 <= sim_y)
         sensor_area = sensor_area_x & sensor_area_y
         i_sens = sim_image.data.copy()
         i_sens[sensor_area!=True]=np.nan
