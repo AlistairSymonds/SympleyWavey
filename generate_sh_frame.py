@@ -43,25 +43,30 @@ if __name__ == "__main__":
 
     phs = np.zeros((samples,samples))
     max_waves_aber = 1
-    fringe_indices = range(2,17)
+    num_aberations = random.randint(1, 8)
+    fringe_indices = []
+    for i in range(0, num_aberations):
+        fringe_indices.append(random.randint(1, 17))
+    
+    fringe_indices.sort()
+
     zernike_values = {}
     for fi in fringe_indices:
         n, m = fringe_to_nm(fi)
         weight = random.random() * max_waves_aber
+        if fi == 6:
+            weight *= 10
         phs += (weight * zernike_nm(n, m, r/wf_r, t))
         zernike_values[fi] = weight
         print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
 
-    
-    wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, zernike_values)
-    ximg, yimg = coordinates.make_xy_grid(2048, diameter=2)
-    rimg, timg = coordinates.cart_to_polar(ximg, yimg)
+    path_error_nm = phs * (args.wavelength*1e3)
 
-    (dr, dt) = wf_data.gen_der_wf(rimg, timg)
-    wavefronts.plot_zernike_der(dr, dt, rimg, timg)
+    wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, path_error_nm, x, y)
+    fig, ax1 = plt.subplots()
 
-    z = wf_data.gen_wf(rimg, timg)
-    wavefronts.plot_zernike(z, rimg, timg)
+    wf_data.plot_wavefront(ax=ax1)
+    plt.show()
 
     run_path = Path("runs")
     run_path = run_path / str(args.seed)
@@ -78,7 +83,7 @@ if __name__ == "__main__":
 
         ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
 
-        path_error_nm = phs * (args.wavelength*1e3)
+        
         wf = WF.from_amp_and_phase(amp, path_error_nm, args.wavelength, dx)
         wf = wf * ulens_phase
         print("propagating wf")
