@@ -8,7 +8,7 @@ from prysm.polynomials.zernike import barplot_magnitudes, zernikes_to_magnitude_
 
 from prysm.util import rms
 from .polynomial import zernike_nm_der_acosta_sequence
-
+from .wavefronts import WavefrontAnalysis
 #todo: aperture masks and rework the silly pitch_x/pitch_y of lens array into something more sensible
 
 class ShackHartmannAnalyser:
@@ -68,7 +68,7 @@ class ShackHartmannAnalyser:
             return False
 
 
-    def analyse(self, img):
+    def analyse(self, img) -> WavefrontAnalysis:
         
         ulens_aabb = []
         for ulens in self.microlens_positions:
@@ -153,11 +153,11 @@ class ShackHartmannAnalyser:
         
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
 
-        #final_img = img
-        #plt.imshow(final_img)
-        #plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
-        #plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
-        #plt.show()
+        final_img = img
+        plt.imshow(final_img)
+        plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
+        plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+        plt.show()
 
         #now actually plot a wavefront
 
@@ -190,7 +190,7 @@ class ShackHartmannAnalyser:
 
         r = r / self.wf_r #go from mm to unit circle to allow for fitting
 
-        fringe_indices = range(5, 10) # skip fitting piston
+        fringe_indices = range(1, 20) # skip fitting piston
         nms = [fringe_to_nm(j) for j in fringe_indices]
 
 
@@ -227,25 +227,10 @@ class ShackHartmannAnalyser:
         
 
         reconstructed_phase = np.zeros(recon_x.shape)
-        reconstructed_dZdr = np.zeros(recon_x.shape)
-        reconstructed_dZdt = np.zeros(recon_x.shape)
 
         for f, nm in zip(fit, nms):
             z = zernike_nm(nm[0],nm[1],recon_r,recon_t)
-            dZdr, dZdt = zernike_nm_der(nm[0],nm[1],recon_r,recon_t)
             reconstructed_phase += (f*z)
-            reconstructed_dZdr += (f*dZdr) 
-            reconstructed_dZdt += (f*dZdt)
 
-
-        rp_img = reconstructed_phase.copy()
-        #go back from normalised unit circle zernike land to physical wavefront beam size
-        recon_r *= self.wf_r
-        zernike_mask = geometry.circle(self.wf_r, recon_r)
-        rp_img[zernike_mask!=1]=np.nan
-
-        plt.figure(figsize=(7,7))
-        plt.imshow(rp_img)
-        plt.show()
-
-        return None
+        wf_info = WavefrontAnalysis("Reconstructed", wavelength=self.wvl, wavefront=reconstructed_phase, x=recon_x, y=recon_y)
+        return wf_info

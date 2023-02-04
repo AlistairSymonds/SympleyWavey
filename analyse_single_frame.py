@@ -2,6 +2,7 @@ import argparse as ap
 from wavey import microlens_array, analyser
 from astropy.io import fits
 from pathlib import Path
+import matplotlib.pyplot as plt
 if __name__ == "__main__":
 
     parser = ap.ArgumentParser("Shack-Hartmann analyser")
@@ -28,3 +29,5 @@ if __name__ == "__main__":
                     sensor_y_px_count=fits_file[0].data.shape[0], sensor_x_px_count=fits_file[0].data.shape[1])
 
     r = a.analyse(fits_file[0].data)
+    r.plot_wavefront()
+    plt.show()
