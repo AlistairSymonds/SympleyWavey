@@ -38,36 +38,39 @@ def plot_frame(fringes, title, file_path):
     ticks = [0, 1024, 2047]
     labels = [-1, 0, 1]
 
-    color_norm=colors.TwoSlopeNorm(vcenter=0.0)
+    color_norm=colors.TwoSlopeNorm(vcenter=0.0, vmax=2, vmin=-2)
     z_ax = fig.add_subplot(1, 3, 1)
     z_ax.imshow(z, norm=color_norm, cmap="RdBu")
     z_ax.set_title("Phase")
     fig.colorbar(z_ax.get_images()[0])
+    plt.axis('off')
 
 
     color_norm=colors.TwoSlopeNorm(vcenter=0.0)
     dr_ax = fig.add_subplot(1, 3, 2)
     dr_ax.imshow(dr, norm=color_norm, cmap="RdBu")
-    dr_ax.set_title("Deriv Phase/radial")
+    dr_ax.set_title("Radial derivative of phase")
     fig.colorbar(dr_ax.get_images()[0])
+    plt.axis('off')
 
 
     color_norm=colors.TwoSlopeNorm(vcenter=0.0)
     dt_ax = fig.add_subplot(1, 3, 3)
-    if m == 0:
-        color_norm=colors.TwoSlopeNorm(vcenter=0.0)
 
     dt_ax.imshow(dt, norm=color_norm, cmap="RdBu")
-    dt_ax.set_title("Deriv Phase/theta")
+    dt_ax.set_title("Tangential derivative of phase")
     fig.colorbar(dt_ax.get_images()[0])
 
+    plt.axis('off')
+    #plt.tight_layout()
     fig.suptitle(title)
     plt.savefig(file_path)
+    plt.close(fig)
     #plt.show()
 
-zernikes = range(1, 10)
+zernikes = range(1, 100)
 
-stable_frames = 1
+stable_frames = 45
 lerp_frames = 30 
 frames_per_zernike = lerp_frames + stable_frames
 frame_count = 0
