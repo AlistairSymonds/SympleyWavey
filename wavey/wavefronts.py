@@ -5,17 +5,17 @@ import matplotlib.pyplot as plt
 from matplotlib import colors
 
 
-def plot_wavefront(z, x, y, zernike_mask=None, ax=None, **plt_kwargs):
+def plot_wavefront(z, x, y, mask=None, ax=None, **plt_kwargs):
 
     r, t = coordinates.cart_to_polar(x, y)
     
     Z_img = z.copy()
-    if zernike_mask is None:
-        rmax = np.max(r)
-        zernike_mask = geometry.circle(rmax, r)
+    if mask is None:
+        rmax = np.max(x)
+        mask = geometry.circle(rmax, r)
 
 
-    Z_img[zernike_mask!=1]=np.nan
+    Z_img[mask!=1]=np.nan
 
     if ax == None:
         ax = plt.gca()
@@ -51,17 +51,22 @@ class WavefrontAnalysis:
 
 
 class ZernikeWavefrontAnalysis(WavefrontAnalysis):
-    def __init__(self, name, wavelength, fringe_indicies, weights, radius, aperture_mask=None) -> None:
-        self.fi = fringe_indicies
-        self.fringe_weights = weights
-
+    def __init__(self, name, wavelength, zernikes, wf_radius, x, y, aperture_mask=None) -> None:
+        self.zernikes = zernikes
+        
+        r, t = coordinates.cart_to_polar(x, y)
         wf = np.zeros_like(r)
-        for j in (fringe_indicies):
+
+        for j in (zernikes):
             n, m = fringe_to_nm(j)
-            wf += (weights[j] * zernike_nm(n, m, r, t))
-            
+            wf += (zernikes[j] * zernike_nm(n, m, r/wf_radius, t))
+    
         wf *= wavelength
-        super().__init__(name, wavelength, wf, aperture_mask)
+
+        if aperture_mask is None:
+            aperture_mask = geometry.circle(wf_radius, r)
+
+        super().__init__(name, wavelength, wf, x, y, aperture_mask=aperture_mask)
 
     def gen_der_wf(self, r, t):
         dZdr = np.zeros_like(r)
@@ -94,24 +99,25 @@ def plot_zernike_der(dr, dt, r, t):
     plt.show()
 
 class WavefrontComparator:
-    def __init__(self, reference_wave: WavefrontAnalysis, ref_x, ref_y) -> None:
+    def __init__(self, reference_wave: WavefrontAnalysis) -> None:
         self.ref = reference_wave
-        self.ref_x = ref_x
-        self.ref_y = ref_y
     
-    def compare_waves(self, test_wavefront):
-        assert(self.ref.shape == test_wavefront.shape)
+    def compare_waves(self, test_wavefront: WavefrontAnalysis):
+        assert(self.ref.wf.shape == test_wavefront.wf.shape)
 
-        delta_wf = self.ref - test_wavefront
+        delta_wf = self.ref.wf - test_wavefront.wf
 
         fig = plt.figure()  
         ref_ax = fig.add_subplot(1, 3, 1)
-        plot_wavefront(self.ref, ax=ref_ax)
+        plot_wavefront(self.ref.wf, x=self.ref.x, y=self.ref.y, ax=ref_ax,)
+        ref_ax.set_title(self.ref.name)
 
         test_ax = fig.add_subplot(1, 3, 2)
-        plot_wavefront(test_wavefront, ax=test_ax)
-        
+        plot_wavefront(test_wavefront.wf, x=self.ref.x, y=self.ref.y, ax=test_ax)
+        test_ax.set_title(test_wavefront.name)
+
         delta_ax = fig.add_subplot(1, 3, 3)
-        plot_wavefront(delta_wf, ax=delta_ax)
+        plot_wavefront(delta_wf, x=self.ref.x, y=self.ref.y, ax=delta_ax)
+        test_ax.set_title("delta between ref and test")
 
         plt.show()
