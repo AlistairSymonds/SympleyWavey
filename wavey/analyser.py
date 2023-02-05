@@ -39,10 +39,9 @@ class ShackHartmannAnalyser:
         grad_end_pts_y = y + dy 
         grad_end_pts_r, grad_end_pts_t = coordinates.cart_to_polar(grad_end_pts_x, grad_end_pts_y, vec_to_grid=False)
 
-        dr = r - grad_end_pts_r
-        dt = t - grad_end_pts_t
+        dr = grad_end_pts_r - r
+        dt = grad_end_pts_t - t
         
-        dt = (dt + np.pi) % (2 * np.pi) - np.pi
         return dr, dt
 
     def polar_gradient_to_cartesian_grad(self, r, t, dr, dt):
@@ -195,8 +194,8 @@ class ShackHartmannAnalyser:
         r, t = coordinates.cart_to_polar(x, y, vec_to_grid=False)
 
         slopes_xy = slopes_xy.T
-
-        dr, dt = self.cartesian_grad_to_polar_grad(x/self.wf_r, y/self.wf_r, slopes_xy[0], slopes_xy[1])
+        
+        dr, dt = self.cartesian_grad_to_polar_grad(x, y, slopes_xy[0], slopes_xy[1])
 
         r = r / self.wf_r #go from mm to unit circle to allow for fitting
 
@@ -205,12 +204,43 @@ class ShackHartmannAnalyser:
 
 
         modes = list(zernike_nm_der_sequence(nms, r, t))
+        modes = np.array(modes)
+        
+        modes *= (1/(self.wvl * 1e3))
+
 
         fit = lstsq(modes, np.array([dr, dt]))
-        fit = fit * (self.wvl*1e3)
+            
+
         print("Fits of the following zernikes:")
         for z in range(0, len(nms)):
-            print(str(nms[z]) + " " + nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z]))
+            fit_str = str(nms[z]) + " " + nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z])
+            print(fit_str)
+            if False:
+                fig = plt.figure(figsize=(20,20))
+                fig.suptitle(fit_str)
+
+                ax = fig.add_subplot(2, 2, 1)
+                scat = ax.scatter(x,y,c=modes[z][0], linestyle='None', cmap="RdBu")
+                ax.set_title("dr for given mode")
+                plt.colorbar(scat)
+
+                ax = fig.add_subplot(2, 2, 2)
+                scat = ax.scatter(x,y, c=dr, linestyle='None', cmap="RdBu")
+                ax.set_title("dr measured")
+                plt.colorbar(scat)
+
+                ax = fig.add_subplot(2, 2, 3)
+                scat = ax.scatter(x,y,c=modes[z][1], linestyle='None', cmap="RdBu")
+                ax.set_title("dt for given mode")
+                plt.colorbar(scat)
+
+                ax = fig.add_subplot(2, 2, 4)
+                scat = ax.scatter(x,y, c=dt, linestyle='None', cmap="RdBu")
+                ax.set_title("dt measured")
+                plt.colorbar(scat)
+
+                plt.show()
 
        
         pak = [[*nm, c] for nm, c in zip(nms, fit)]
@@ -242,7 +272,9 @@ class ShackHartmannAnalyser:
             z = zernike_nm(nm[0],nm[1],recon_r,recon_t)
             reconstructed_phase += (f*z)
 
-        wf_info = WavefrontAnalysis("Reconstructed", wavelength=self.wvl, wavefront=reconstructed_phase, x=recon_x, y=recon_y)
+        reconstructed_opd_nm = reconstructed_phase * self.wvl * 1e3
+
+        wf_info = WavefrontAnalysis("Reconstructed", wavelength=self.wvl, wavefront=reconstructed_opd_nm, x=recon_x, y=recon_y)
         return wf_info
 
     def analyse(self, img) -> WavefrontAnalysis:
