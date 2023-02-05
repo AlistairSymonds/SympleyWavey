@@ -153,12 +153,21 @@ class ShackHartmannAnalyser:
             deviation_img_px[cell_idx]    = np.array(self.optical_coords_to_pixel(centroid_img[0],centroid_img[1]))
         
             #plt.quiver(expected_pos_img_px[0], expected_pos_img_px[1], deviation_img_px[0], deviation_img_px[1], alpha=0.5, color='white')
+        if self.debug:
 
-        #final_img = img
-        #plt.imshow(final_img)
-        #plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
-        #plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
-        #plt.show()
+            final_img = img
+            plt.imshow(final_img)
+            plt.plot(expected_pos_img_px[:,0], expected_pos_img_px[:,1], marker ='o', color='blue', alpha=0.5,linestyle='None', zorder=4)
+            plt.plot(deviation_img_px[:,0], deviation_img_px[:,1], marker ='+', color='red', alpha=0.5, linestyle='None',zorder=6)
+            
+            #all the text can be quite unreadable...
+            #for c_idx, px in enumerate(deviation_img_px):
+            #    xdel = cells_for_calc[c_idx]["centroid_xy"][0]
+            #    ydel = cells_for_calc[c_idx]["centroid_xy"][1]
+            #    deviation_text = f"x: {xdel:.3f}, y: {ydel:.3f}"
+            #    plt.text(px[0], px[1], deviation_text, zorder=7)
+
+            plt.show()
 
         #now actually plot a wavefront
 
@@ -180,9 +189,9 @@ class ShackHartmannAnalyser:
 
         return ((x,y), slopes_xy)
 
-    def analyse(self, img) -> WavefrontAnalysis:
-
-        ((x,y), slopes_xy) = self.calculate_spot_deviations(img)
+    def reconstruct_wavefront(self, xy, slopes_xy):
+        x = xy[0]
+        y = xy[1]
         r, t = coordinates.cart_to_polar(x, y, vec_to_grid=False)
 
         slopes_xy = slopes_xy.T
@@ -234,4 +243,11 @@ class ShackHartmannAnalyser:
             reconstructed_phase += (f*z)
 
         wf_info = WavefrontAnalysis("Reconstructed", wavelength=self.wvl, wavefront=reconstructed_phase, x=recon_x, y=recon_y)
+        return wf_info
+
+    def analyse(self, img) -> WavefrontAnalysis:
+
+        (xy, slopes_xy) = self.calculate_spot_deviations(img)
+        wf_info = self.reconstruct_wavefront(xy, slopes_xy)
+
         return wf_info
