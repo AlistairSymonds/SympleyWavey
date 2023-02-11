@@ -55,18 +55,18 @@ class ZernikeWavefrontAnalysis(WavefrontAnalysis):
         self.zernikes = zernikes
         
         r, t = coordinates.cart_to_polar(x, y)
-        wf = np.zeros_like(r)
+        phs = np.zeros_like(r)
 
         for j in (zernikes):
             n, m = fringe_to_nm(j)
-            wf += (zernikes[j] * zernike_nm(n, m, r/wf_radius, t))
+            phs += (zernikes[j] * zernike_nm(n, m, r/wf_radius, t))
     
-        wf *= wavelength
+        opd_nanometres = phs *  wavelength * 1e3
 
         if aperture_mask is None:
             aperture_mask = geometry.circle(wf_radius, r)
 
-        super().__init__(name, wavelength, wf, x, y, aperture_mask=aperture_mask)
+        super().__init__(name, wavelength, opd_nanometres, x, y, aperture_mask=aperture_mask)
 
     def gen_der_wf(self, r, t):
         dZdr = np.zeros_like(r)
@@ -102,7 +102,7 @@ class WavefrontComparator:
     def __init__(self, reference_wave: WavefrontAnalysis) -> None:
         self.ref = reference_wave
     
-    def compare_waves(self, test_wavefront: WavefrontAnalysis):
+    def compare_waves(self, test_wavefront: WavefrontAnalysis, use_lambda_units=False):
         assert(self.ref.wf.shape == test_wavefront.wf.shape)
 
         ref_wf_masked = self.ref.wf.copy()
@@ -112,17 +112,26 @@ class WavefrontComparator:
         test_wf_masked[self.ref.aperture!=1]=np.nan
 
         delta_wf = ref_wf_masked - test_wf_masked
+        
+        units_str = "nm"
+        if use_lambda_units:
+            assert(self.ref.wavelength == test_wavefront.wavelength)
+            delta_wf       *= (1.0/(self.ref.wavelength * 1e3)) 
+            ref_wf_masked  *= (1.0/(self.ref.wavelength * 1e3))
+            test_wf_masked *= (1.0/(self.ref.wavelength * 1e3))
+            units_str = "waves, lambda = " + str(self.ref.wavelength*1e3) + "nm"
 
-        vmin = np.nanmin([delta_wf, ref_wf_masked, test_wf_masked])
-        vmax = np.nanmax([delta_wf, ref_wf_masked, test_wf_masked])
+        vmin = np.nanmin(np.array([delta_wf, ref_wf_masked, test_wf_masked]))
+        vmax = np.nanmax(np.array([delta_wf, ref_wf_masked, test_wf_masked]))
 
         fig = plt.figure(figsize=(15,5))  
+        fig.suptitle(f"Wavefront OPD errors [{units_str}]")
         ref_ax = fig.add_subplot(1, 3, 1)
-        plot_wavefront(self.ref.wf, mask=self.ref.aperture,  x=self.ref.x, y=self.ref.y, ax=ref_ax, vmax=vmax, vmin=vmin)
+        plot_wavefront(ref_wf_masked, mask=self.ref.aperture,  x=self.ref.x, y=self.ref.y, ax=ref_ax, vmax=vmax, vmin=vmin)
         ref_ax.set_title(self.ref.name)
 
         test_ax = fig.add_subplot(1, 3, 2)
-        test_ax = plot_wavefront(test_wavefront.wf, mask=self.ref.aperture, x=self.ref.x, y=self.ref.y, ax=test_ax, vmax=vmax, vmin=vmin)
+        test_ax = plot_wavefront(test_wf_masked, mask=self.ref.aperture, x=self.ref.x, y=self.ref.y, ax=test_ax, vmax=vmax, vmin=vmin)
         test_ax.set_title(test_wavefront.name)
 
         delta_ax = fig.add_subplot(1, 3, 3)
