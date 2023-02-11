@@ -197,13 +197,11 @@ class ShackHartmannAnalyser:
         
         dr, dt = self.cartesian_grad_to_polar_grad(x, y, slopes_xy[0], slopes_xy[1])
 
-        r = r / self.wf_r #go from mm to unit circle to allow for fitting
-
-        fringe_indices = range(3, 25) # skip fitting piston
+        fringe_indices = range(2, 25) # skip fitting piston
         nms = [fringe_to_nm(j) for j in fringe_indices]
 
 
-        modes = list(zernike_nm_der_sequence(nms, r, t))
+        modes = list(zernike_nm_der_sequence(nms, r/ self.wf_r, t)) #normalise to WF radius to generate zernikes
         modes = np.array(modes)
         
         modes *= (1/(self.wvl * 1e3))
@@ -216,6 +214,7 @@ class ShackHartmannAnalyser:
         for z in range(0, len(nms)):
             fit_str = str(nms[z]) + " " + nm_to_name(nms[z][0], nms[z][1]) + ": " + str(fit[z])
             print(fit_str)
+            #gradient debug plotting. hopefully never needed again
             if False:
                 fig = plt.figure(figsize=(20,20))
                 fig.suptitle(fit_str)
