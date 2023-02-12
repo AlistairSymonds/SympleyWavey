@@ -3,31 +3,42 @@ from prysm.polynomials import zernike_nm, zernike_nm_der_sequence, lstsq, nm_to_
 from prysm import geometry, coordinates
 import matplotlib.pyplot as plt
 from matplotlib import colors
-
+  
 
 def plot_wavefront(z, x, y, mask=None, ax=None, vmin=None, vmax=None, **plt_kwargs):
 
     r, t = coordinates.cart_to_polar(x, y)
     
     Z_img = z.copy()
+    Z_stats = z.copy()
     if mask is None:
         rmax = np.max(x)
         mask = geometry.circle(rmax, r)
 
 
     Z_img[mask!=1]=np.nan
+    Z_stats[mask!=1]=0
 
     if ax == None:
         ax = plt.gca()
     ax.set_title("Wavefront deviation")
     color_norm=colors.TwoSlopeNorm(vcenter=0.0, vmin=vmin, vmax=vmax)
 
-    ax.imshow(Z_img, cmap='Spectral', norm=color_norm)
-    x_tick = x[0]
-    y_tick = y[:,0]
+    var = np.var(Z_stats)
+    rms = np.sqrt(var)
+    z_min = np.min(Z_stats)
+    z_max = np.max(Z_stats)
+    peak_to_valley = z_max - z_min
 
-    #ax.set_xticks(x_tick)
-    #ax.set_yticks(y_tick)
+    stats_str = f"PtV: {peak_to_valley:.03f}\nRMS: {rms:.03f}"
+    x_ticks = x[0]
+    y_ticks = y[:,0]
+    xmin = np.min(x_ticks)
+    xmax = np.max(x_ticks)
+    ymin = np.min(y_ticks)
+    ymax = np.max(y_ticks)
+    ax.imshow(Z_img, cmap='Spectral', norm=color_norm, extent=[xmin, xmax, ymax, ymin], origin='lower')
+    plt.text(0,0, stats_str, transform=ax.transAxes)
     return ax
 
 
