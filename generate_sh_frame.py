@@ -24,6 +24,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     random.seed(args.seed)
+    np.random.seed(args.seed)
 
     wf_r = args.wavefront_radius
     samples = 8192
@@ -42,20 +43,21 @@ if __name__ == "__main__":
     
 
     phs = np.zeros((samples,samples))
-    max_waves_aber = 1
-    num_aberations = random.randint(1, 4)
-    fringe_indices = []
-    for i in range(0, num_aberations):
-        fringe_indices.append(random.randint(3, 10))
-    
-    fringe_indices.sort()
+    max_term       = random.randint(3, 36)
+    max_waves_aber = random.randint(1, 25)
+    num_aberations = random.randint(1, max_term-3)
+    possible_terms = np.arange(3, max_term)
+    fringe_indices = np.random.choice(possible_terms, size=num_aberations, replace=False)
+    fringe_indices = list(fringe_indices)
+
+        
 
     zernike_values = {}
     for fi in fringe_indices:
         n, m = fringe_to_nm(fi)
         weight = random.random() * max_waves_aber
         phs += (weight * zernike_nm(n, m, r/wf_r, t))
-        zernike_values[fi] = weight
+        zernike_values[int(fi)] = weight
         print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
 
     path_error_nm = phs * (args.wavelength*1e3)
@@ -63,12 +65,16 @@ if __name__ == "__main__":
     wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, path_error_nm, x, y)
     fig, ax1 = plt.subplots()
 
-    wf_data.plot_wavefront(ax=ax1)
-    plt.show()
+    #wf_data.plot_wavefront(ax=ax1)
+    #plt.colorbar(ax1.get_images()[0])
+    #plt.show()
 
     run_path = Path("runs")
     run_path = run_path / str(args.seed)
     run_path.mkdir(parents=True, exist_ok=True)
+
+    with open(run_path / "rand_values.txt", "w") as f:
+        f.write(f"Max Zernike term: {max_term}\nMax waves error: {max_waves_aber}\nNumber of aberations: {num_aberations}")
 
     
     with open(run_path / "generated_wave_zernike.json", "w") as f:
