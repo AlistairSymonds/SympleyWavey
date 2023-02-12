@@ -10,23 +10,11 @@ import random
 import matplotlib.pyplot as plt
 from pathlib import Path
 import json
-if __name__ == "__main__":
 
-    parser = ap.ArgumentParser("Shack-Hartmann analyser")
-    parser.add_argument("--seed", help="Seed value for python's rand to be used during wavefront generation", type=int, default=1)
-    parser.add_argument("--sensor", help="Sensor type", choices=["imx174", "im533"])
-    parser.add_argument("--wavefront_radius", help="mm", type=float)
-    parser.add_argument("--wavelength", help="in micron", type=float)
-    parser.add_argument("--microlens", help="Which type of microlens array was used", choices=["mla300", "mla1"])
-    parser.add_argument("--aperture", choices=["circle", "RC8", "RC12", "Hubble", "JWST"])
-    parser.add_argument("--output_dir", default="")
-    
-    args = parser.parse_args()
+def gen_rand_sh_data(seed, wavlength_um, wf_r, aperture):
+    random.seed(seed)
+    np.random.seed(seed)
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-
-    wf_r = args.wavefront_radius
     samples = 8192
     x, y = coordinates.make_xy_grid(samples, diameter=12)
     r, t = coordinates.cart_to_polar(x, y)
@@ -37,7 +25,7 @@ if __name__ == "__main__":
     image_sensors = [sensor.imx533(), sensor.imx174()]
     
     amp = None
-    if args.aperture == "circle":
+    if aperture == "circle":
         amp = geometry.circle(wf_r, r)
 
     
@@ -60,9 +48,9 @@ if __name__ == "__main__":
         zernike_values[int(fi)] = weight
         print(str((n, m)) + " " + nm_to_name(n, m) + ": " + str(weight))
 
-    path_error_nm = phs * (args.wavelength*1e3)
+    path_error_nm = phs * (wavlength_um*1e3)
 
-    wf_data = wavefronts.WavefrontAnalysis("generated", args.wavelength, path_error_nm, x, y)
+    wf_data = wavefronts.WavefrontAnalysis("generated", wavlength_um, path_error_nm, x, y)
     fig, ax1 = plt.subplots()
 
     #wf_data.plot_wavefront(ax=ax1)
@@ -70,7 +58,7 @@ if __name__ == "__main__":
     #plt.show()
 
     run_path = Path("runs")
-    run_path = run_path / str(args.seed)
+    run_path = run_path / str(seed)
     run_path.mkdir(parents=True, exist_ok=True)
 
     with open(run_path / "rand_values.txt", "w") as f:
@@ -85,10 +73,10 @@ if __name__ == "__main__":
         microlens_positions = ulens_arr.get_lens_centres()
         micro_lens_corners = ulens_arr.get_lens_cell_corners()
 
-        ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=args.wavelength)
+        ulens_phase = ulens_arr.shack_hartmann_phase_screen(x=x, y=y, wavelength=wavlength_um)
 
         
-        wf = WF.from_amp_and_phase(amp, path_error_nm, args.wavelength, dx)
+        wf = WF.from_amp_and_phase(amp, path_error_nm, wavlength_um, dx)
         wf = wf * ulens_phase
         print("propagating wf")
         wf2 = wf.free_space(dz=ulens_arr.get_fl(), Q=1)
@@ -101,3 +89,23 @@ if __name__ == "__main__":
             hdu.header['XPIXSZ'] = s.pixel_width * 1000
             hdu.header['YPIXSZ'] = s.pixel_height * 1000
             hdu.writeto(run_path / f"{s.__class__.__name__}_{ulens_arr.__class__.__name__}.fits", overwrite=True)
+
+if __name__ == "__main__":
+
+    parser = ap.ArgumentParser("Shack-Hartmann analyser")
+    parser.add_argument("--seed", help="Seed value for python's rand to be used during wavefront generation", type=int, default=1)
+    parser.add_argument("--nruns", help="Number of seeds to run", type=int, default=1)
+
+    parser.add_argument("--sensor", help="Sensor type", choices=["imx174", "im533"])
+    parser.add_argument("--wavefront_radius", help="mm", default = 5.0, type=float)
+    parser.add_argument("--wavelength", help="in micron", default = 0.55, type=float)
+    parser.add_argument("--microlens", help="Which type of microlens array was used", choices=["mla300", "mla1"])
+    parser.add_argument("--aperture", choices=["circle", "RC8", "RC12", "Hubble", "JWST"])
+    parser.add_argument("--output_dir", default="")
+    
+    args = parser.parse_args()
+    for s in range(args.nruns):
+        seed = s + args.seed
+        print(f"Running for seed: {seed}")
+        gen_rand_sh_data(seed, args.wavelength, wf_r=args.wavefront_radius, aperture="circle")
+    
