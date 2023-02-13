@@ -1,5 +1,5 @@
 import numpy as np
-from prysm.polynomials.qpoly import compute_z_zprime_Q2d, Q2d_nm_c_to_a_b
+from prysm.polynomials.qpoly import compute_z_zprime_Q2d, Q2d_nm_c_to_a_b, Q2d
 from prysm.polynomials import fringe_to_nm, nm_to_name
 from prysm import geometry, coordinates
 import matplotlib.pyplot as plt
@@ -25,9 +25,11 @@ def plot_q2d(fringes, coeffs):
     (cms, ams, bms )= Q2d_nm_c_to_a_b(nms, coeffs)
     (_z, _dr, _dt) = compute_z_zprime_Q2d(cms, ams, bms, r, t)
 
-    z  += (_z)
-    dr += (_dr)
-    dt += (_dt)
+    z  = (_z)
+    dr = (_dr)
+    dt = (_dt)
+
+    #z = Q2d(1, 1, r, t)
 
     # Mask out a circle for plotting
     mask = geometry.circle(1, r)
@@ -77,7 +79,7 @@ zernikes = np.arange(1, 9)
 coeffs = np.zeros(zernikes.shape)
 #coeffs[5] = 1
 #coeffs[4] = 0.5
-coeffs[7] = 10
+coeffs[1] = 10
 
 
 plot_q2d(zernikes, coeffs)
