@@ -4,7 +4,7 @@ from prysm.polynomials import fringe_to_nm, nm_to_name
 from prysm import geometry, coordinates
 import matplotlib.pyplot as plt
 from matplotlib import colors
-from pathlib import Path
+import random
 
 def plot_q2d(fringes, coeffs):
     
@@ -18,7 +18,8 @@ def plot_q2d(fringes, coeffs):
     nms = []
     for J, C in zip(fringes, coeffs):
         (n, m) = fringe_to_nm(J)
-        print(f"(n: {n}, m: {m}) - {C}")
+        if C != 0:
+            print(f"(n: {n}, m: {m}) - {C}")
         nms.append((n, m))
 
 
@@ -28,8 +29,6 @@ def plot_q2d(fringes, coeffs):
     z  = (_z)
     dr = (_dr)
     dt = (_dt)
-
-    #z = Q2d(1, 1, r, t)
 
     # Mask out a circle for plotting
     mask = geometry.circle(1, r)
@@ -74,13 +73,16 @@ def plot_q2d(fringes, coeffs):
 
 
 
-
-zernikes = np.arange(1, 9)
+zernikes = np.arange(1, 36)
 coeffs = np.zeros(zernikes.shape)
-#coeffs[5] = 1
-#coeffs[4] = 0.5
-coeffs[1] = 10
+for J, C in zip(zernikes, coeffs):
+    (n, m) = fringe_to_nm(J)
+    name = nm_to_name(n, m)
+    print(f"(n: {n}, m: {m}) - {name}")
+    
 
+for num in range(3):
+    idx = random.randint(0, len(coeffs)-1)
 
 plot_q2d(zernikes, coeffs)
         
