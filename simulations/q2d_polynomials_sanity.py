@@ -73,7 +73,7 @@ def plot_q2d(fringes, coeffs):
 
 
 
-zernikes = np.arange(1, 36)
+zernikes = np.arange(2, 12) #change second value to include higher modes
 coeffs = np.zeros(zernikes.shape)
 for J, C in zip(zernikes, coeffs):
     (n, m) = fringe_to_nm(J)
@@ -83,6 +83,7 @@ for J, C in zip(zernikes, coeffs):
 
 for num in range(3):
     idx = random.randint(0, len(coeffs)-1)
+    coeffs[idx] += random.random()
 
 plot_q2d(zernikes, coeffs)
         
